@@ -4,7 +4,6 @@
 import os
 import glob
 import json
-import configparser
 
 import numpy as np
 import nibabel as nib
@@ -13,7 +12,6 @@ import nibabel as nib
 # Basic data handling functions
 # =============================
 
-# NOTE: this may require me to explicitly define cwd through os module on Oak/Sherlock
 # Make directories, with error exception
 def create_directory(dir_):
     """
@@ -34,7 +32,6 @@ def create_directory(dir_):
         print(f'> Path: {dir_}\n...already exists.\n')
 
 
-# TODO: add logging to this function
 def save_data(dir_, *args, **kwargs):
     """
     Uses numpy's save(), savez() or savez_compressed(), 
@@ -56,17 +53,26 @@ def save_data(dir_, *args, **kwargs):
         # Log failure here
         print(dir_ + ' failed to create.\n')
 
-
-
+# Get dict of each subject id and associated filepath
 def get_files_dict(path, id_list):
-    
+    """
+    Get dict of each subject id and its associated filepath. Intendedn for use
+    during data preparation, before analysis.
+    """
+
     id_file_dict = {}
     for id_ in id_list:
         for file in glob.iglob(path.format(id_), recursive=True):
             id_file_dict[id_] = file
     return id_file_dict
 
+# Reshape 4d fmri data into 2d and save output as .npy filetype
 def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
+    """
+    Reshapes 4d fmri data into a 2d numpy array and saves the output as a
+    .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
+    numpy array.
+    """
     
     for id_ in files_dict:
         id_path = files_dict[id_]
@@ -122,57 +128,6 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         np.random.seed(seed)
         fake_data = np.random.randint(1000, 5000, size=datasize)
         save_data(output_path.format(sub), fake_data)
-
-def test_fake():
-    cwd = os.getcwd()
-    test_dir = cwd+'/data/inputs/test_data'
-    create_directory(test_dir)
-
-    test_data = np.array([[420, 69],[1234, 5]])
-
-    file_fake = "/sub-{}.npy"
-    file_filter = "/filter_sub-{}.npz"
-
-    np.save(test_dir+file_fake.format(69), test_data)
-    np.savez(test_dir+file_filter.format(69), data=test_data, mask='yuhhhh')
-
-    save_data(test_dir+file_fake.format(70), test_data)
-    save_data(test_dir+file_filter.format(70), dict(data=test_data, mask='yuhhhh'))
-
-def run_test():
-    cwd = os.getcwd()
-    test_dir = cwd+'/data/inputs/test_data'
-    file_fake = '/sub-{}.npy'
-    file_filter = '/filter_sub-{}.npz'
-    test_data = np.array([[420, 69],[1234, 5]])
-    dict_ = dict(data=test_data, mask='yuh')
-
-    def saver1(path, args):
-        np.savez(path, **args)
-    
-    def saver2(path, **args):
-        np.savez(path, **args)
-
-    def saver3(path, *args, **kwargs):
-        if path.endswith('.npy'):
-            np.save(path, *args)
-
-        elif path.endswith('.npz'):
-            np.savez(path, **kwargs)
-
-
-    saver1(test_dir+file_filter.format(71), dict_)
-    saver2(test_dir+file_filter.format(72), data=test_data, mask='hmm')
-    saver3(test_dir+file_fake.format(73), test_data)
-    saver3(test_dir+file_filter.format(73), data=test_data, mask='horny')
-
-    data1 = np.load(test_dir+file_filter.format(71))
-    data2 = np.load(test_dir+file_filter.format(72))
-    data3 = np.load(test_dir+file_fake.format(73))
-    data4 = np.load(test_dir+file_filter.format(73))
-    
-    return data1, data2, data3, data4
-
 
 def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=None):
     """

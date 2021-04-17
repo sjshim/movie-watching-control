@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 
-# run_prep_data: Script to prepare subjects' NiFti files into 
-# local .npy files.
+# run_fake_prep: This script creates fake subject data used for local testing
+# of both the intersubject package and scripts for doing the analyses 
+# automatically. The data is 4d with the shape (4, 4, 4, 10).
+# 
+# The files are created either using lists of real subject ID's or by using
+# the desired number/range of subjects (from which their IDs will be derived).
+#  
+# The resulting fake data will be store as Numpy ".npy" files and located in the
+# directory "data/inputs/fake_data/" and "real_ids/" or "range_ids/" depending
+# on which type was chosen. 
+
+# NOTE: should I combine real nifti data prep with this script?
+# ans: Yes, I don't want too many scripts in the outer project directory
 
 import os
 
@@ -33,7 +44,7 @@ def setup_fake_data():
     range_dict = tools.get_files_dict(path_dict['fake_range'] + file_fake, [i*2+1 for i in range(sub_range)])
 
     # NOTE: make cutoff mean=0; it makes the data far too sparse for testing purpose (and might not even be useful
-    # for IRL analysis). Mean cutoff has been 3000, a carryover from YC
+    # for IRL analysis). Mean cutoff was once originally 3000, a carryover from YC
     cutoffs = {'col': 10, 'mean': 0}
     tools.prep_data(ids_dict, path_dict['filter_ids'] + file_filter, cutoffs['col'], cutoffs['mean'])
     tools.prep_data(range_dict, path_dict['filter_range'] + file_filter, cutoffs['col'], cutoffs['mean'])

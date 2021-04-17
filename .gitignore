@@ -1,0 +1,8 @@
+# Ignore these directories
+/tests
+/data
+**/__pycache__
+
+# Ignore these files
+script_settings.json
+requirements.txt

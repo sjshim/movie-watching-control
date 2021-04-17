@@ -2,12 +2,10 @@
 # and thresholding of fMRI data produced during intersubject analysis.
 
 
-# External modules
 import numpy as np
-# Package modules relative import
+
 from .basic_stats import r_mean
 from local_intersubject_pkg.intersubject import Intersubject
-
 
 def tail_null(fake_average, true_average, tail='upper'):
     """
@@ -110,8 +108,6 @@ def threshold_mask(null_count, n_iter, sig_level, tail='two', output_type='maske
 
 
     """
-    # print(null_count.dtype, null_count.shape)
-
     # Calculate p-values
     p_values = null_count/n_iter
 
@@ -140,7 +136,8 @@ def threshold_mask(null_count, n_iter, sig_level, tail='two', output_type='maske
 
 # 1-sample permutation test with r-value sign flipping
 def perm_signflip(x, n_iter, tail='two', average_method='median', shuffle_method='subject', 
-                    compute_method='null_count', output_type='masked_data', sig_level=None, seed=None, x_avg=None):
+                    compute_method='null_count', output_type='masked_data', 
+                    sig_level=None, seed=None, x_avg=None):
     """
     Compute permutation test by flipping array values positive or negative 
     for several iterations. Performed randomly either across all 

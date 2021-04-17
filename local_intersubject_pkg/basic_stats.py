@@ -47,8 +47,6 @@ def fisher_transform(x, output_type='z', method='short'):
     is better tested and validated.
 
     """
-
-
     # Currently, both output types assume the correct input (i.e., r or z) is provided
     # Transform Pearson r correlation coefficients into z by default or r when defined
     def arctanh_tanh(x, output): # fisher z transformation calculated with arctanh and tanh

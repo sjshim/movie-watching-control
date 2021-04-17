@@ -29,7 +29,7 @@ from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 from subjects import subjects, subs_binge, subs_smoke
 
 
-def run_intersubject(method, out_type=None, use_fake_data=False, which_fake='range_ids'):
+def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='range_ids'):
     # do intersubject analysis
 
     # Get data path
@@ -56,7 +56,7 @@ def run_intersubject(method, out_type=None, use_fake_data=False, which_fake='ran
     else:
         return intersubject
 
-def run_nonparametric(data, method, iterations, sig_level, data_avg=None, stored_data=None):
+def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, stored_data=None):
     # do nonparametric tests
 
     # TODO: optionally retrieve data from storage
@@ -156,24 +156,33 @@ if __name__ == '__main__':
         intersub_method = None
 
     # Check nonparametric method arguments
-    if args.perm_signflip:
+    if args.signflip:
         nonparam_method = 'perm_signflip'
-    elif args.perm_grouplabel:
+    elif args.grouplabel:
         nonparam_method = 'perm_grouplabel'
     else:
         nonparam_method = None
 
-
+    # Exit if both method arguments are None
+    assert intersub_method != nonparam_method, 'Provide at least one method argument'
+    
     # Perform the chosen intersubject analysis
     try:
         if intersub_method != None:
-            intersubject = run_intersubject(intersub_method)
+            intersub_results = choose_intersubject(intersub_method)
+
         print(f"...'{intersub_method}' intersubject method performed successfully.")
     except:
         print(f"...'{intersub_method}' intersubject method failed to complete :'(")
 
     # Do a nonparametric test
-    if nonparam_method != None:
+    try: 
+        if nonparam_method != None:
+            nonparam_results = choose_nonparametric(intersub_results, 
+                                nonparam_method, iterations, significance_level,
+                                )
+
+
         if nonparam_method == 'perm_signflip':
             results = perm_signflip(intersubject['entire'], iterations, sig_level=significance_level)
 
