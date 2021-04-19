@@ -11,10 +11,8 @@
 # directory "data/inputs/fake_data/" and "real_ids/" or "range_ids/" depending
 # on which type was chosen. 
 
-# NOTE: should I combine real nifti data prep with this script?
-# ans: Yes, I don't want too many scripts in the outer project directory
-
 import os
+import sys
 
 import numpy as np
 import nibabel as nib
@@ -53,6 +51,9 @@ def setup_fake_data():
 
 
 if __name__ == "__main__":
+
+    args = sys.argv
+
     # Define data input paths strings
     cwd = os.getcwd()
     path_dict = {

@@ -1,6 +1,7 @@
 # nonparametric.py: This module contains functions for nonparametric assessment
 # and thresholding of fMRI data produced during intersubject analysis.
 
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -282,7 +283,7 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
     for many iterations. The resulting null distribution is compared 
     against the real averaged data .
 
-    NOTE: This function currently assumes that within-between ISFC is being
+    NOTE: This function currently assumes that within-between ISC is being
     tested, although it could still work for usual two-group comparisons.
 
     Parameters
@@ -347,14 +348,17 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
     for i in range(n_iter):
         print('> Iteration {} starting...'.format(i))
 
-        # Randomize subject ids and reassign to groups
+        # Randomize subject ids and reassign to new groups with same lengths as originals
         fake_subjects = sub_id_dict['left'] + sub_id_dict['right']
         np.random.seed(seed)
+        seed += 1 # update seed for next iteration
         np.random.shuffle(fake_subjects)
         
         # Assign randomized ids to new groups
         fake_left = fake_subjects[: len(sub_id_dict['left'])]
         fake_right = fake_subjects[len(sub_id_dict['left']): ]
+        assert fake_left != sub_id_dict['left'], "real and fake left group should be different"
+        assert fake_right != sub_id_dict['right'], "real and fake right group should be different"
 
         # Recalculate within-between intersubject using the randomized groups
         perm_inter = Intersubject(data_path, datasize)
@@ -401,3 +405,7 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
 #         # Null hypothesis: True average is not greater than Null average
 #         this_count = fake_average > true_average
 #         reject_count = reject_count + this_count # add rejection counts per iteration
+
+# def mp_test():
+
+#     with Pool(5)
