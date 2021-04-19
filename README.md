@@ -30,6 +30,11 @@ This project's contents are:
 
 First, run `script_setup.py` to create `script_settings.json`, a configuration file containing useful filepaths and some parameters for the analysis that can also be manually modified afterward. This is mostly useful for running these analyses using scripts.
 
+Example of using `script_setup.py`
+```
+
+```
+
 Note: If you want to run the analysis script without using real Nifti data, then you can also execute `run_fake_prep.py` to create a small, random dataset that can be analyzed instead.   
 
 ### Running with scripts
@@ -46,6 +51,9 @@ Open any terminal/command line on your computer, then do the following:
 
 # Run within-between isc with group label permutation test
 > python run_intersubject_analysis.py -wl
+
+# Get a list of argument options from the command line
+> python run_intersubject_analysis.py -h
 ```
 
 

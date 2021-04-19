@@ -3,28 +3,22 @@
 import os
 import sys
 import argparse
-import configparser
+# import configparser
 import json
 
 from local_intersubject_pkg.tools import create_directory
 
-def create_script_settings(file_type, nifti_path, project_path, data_dest, create_dir):
+def create_script_settings(nifti_path, project_path, data_dest, create_dir):
     """
     Create a configuration file containing filepaths, parameters, and other
     persistent info that are used by this analysis. The resulting file is
     a JSON file that can also be changed manually.
 
     Its filepaths represent the default directory structure of this project. 
-
-    Currently both .json and .ini are allowed, but .json is preferred. 
     """
     # ========================================================
-    # Define paths
-
-    # script settings file name
-    settings_file = "script_settings" + file_type
-    
     # Create dicts of filepaths
+    settings_file = "script_settings.json" # script settings file name
     paths = {
         "settings_path": settings_file,
         "project_path": project_path,
@@ -62,27 +56,11 @@ def create_script_settings(file_type, nifti_path, project_path, data_dest, creat
     # main_subsections = [paths, parameters, fake_paths]
     
     try:
-        # saves as .json or .ini
-        if file_type == '.json':
-
-            # Save file
-            with open(settings_file, 'w') as outfile:
-                json.dump(main_sections, outfile, indent=4)
-
-        elif file_type == '.ini':
-            # create configparser object
-            config = configparser.ConfigParser()
-            
-            for main, sub in zip(main_sections, main_subsections):
-                config[main] = sub
-        
-            # Save file
-            with open(settings_file, 'w') as outfile:
-                config.write(outfile)
-
+        # save as .json file
+        with open(settings_file, 'w') as outfile:
+            json.dump(main_sections, outfile, indent=4)
         assert os.path.exists(settings_file)
-        print(f"...Successfully wrote '{settings_file}' configuration file")
-            
+        print(f"...Successfully wrote '{settings_file}' configuration file")            
     except:
         print(f"...Could not write '{settings_file}' configuration file") 
 
@@ -102,13 +80,9 @@ def get_setup_arguments():
     # fancy command line arguments
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
-        "-t", "--file_type", choices=['.json', '.ini'],
-        default='.json',
-        help="Choose whether to create a .json or .ini settings file."
-        )
-    parser.add_argument(
         "-n", "--nifti_path",
-        help="The location of subjects' input Nifti data to use for analysis."
+        help="""The location of subjects' input Nifti data to use for analysis.
+        This location will not be defined by default."""
     )
     parser.add_argument(
         "-p", "--project_path", default = cwd,
@@ -123,7 +97,7 @@ def get_setup_arguments():
     )
     parser.add_argument(
         "-c", "--create_dir",
-        help="""Create directory structure as defined in this settings file. If this flag
+        help="""Optional; Create directory structure as defined in this settings file. If this flag
         is not provided, then directory creation is supressed.""",
         action="store_true"
     )
@@ -137,7 +111,6 @@ if __name__ == "__main__":
     # Get arguments from command line
     args = get_setup_arguments()
 
-    file_type = args.file_type
     nifti_path = args.nifti_path
     project_path = args.project_path
     create_dir = args.create_dir
@@ -156,11 +129,11 @@ if __name__ == "__main__":
     # if nifti_path[0] != '/':
     #     nifti_path = '/' + nifti_path
 
-    print(f'Making {file_type} type settings file...')
+    print(f'Making json settings file...')
     print(f"Nifti path: \n--> '{nifti_path}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{project_path}'")
 
     # Make the settings file!
-    create_script_settings(file_type, nifti_path, project_path, data_dest, create_dir)
+    create_script_settings(nifti_path, project_path, data_dest, create_dir)
 

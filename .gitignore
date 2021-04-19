@@ -1,6 +1,6 @@
 # Ignore these directories
 /tests
-/data
+**/data
 **/__pycache__
 
 # Ignore these files
