@@ -21,7 +21,7 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
     settings_file = "script_settings.json" # script settings file name
     paths = {
         "settings_path": settings_file,
-        "project_path": project_path,
+        "project_path": project_path, # incase it's not cwd for some reason
 
         "data_dest": data_dest,
         "data_inputs": os.path.join(data_dest, "data", "input"),
@@ -29,6 +29,7 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
 
         "nifti_path": nifti_path
     }
+    # Use os.path.join for OS compatible filepaths
     paths['npy_path'] = os.path.join(paths['data_inputs'], 'npy_data')
 
     # Setup parameters needed between scripts
@@ -80,7 +81,7 @@ def get_setup_arguments():
     # fancy command line arguments
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
-        "-n", "--nifti_path",
+        "-n", "--nifti_path", default="",
         help="""The location of subjects' input Nifti data to use for analysis.
         This location will not be defined by default."""
     )
