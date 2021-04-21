@@ -111,6 +111,11 @@ def get_analysis_args():
     )
 
     parser.add_argument(
+        "-i", "--n_iterations", default=20, type=int,
+        help="""Number of iterations for nonparametric test to perform."""
+    )
+
+    parser.add_argument(
         "-a", "--alpha", default=0.05, type=int,
         help="""The significance level to threshold data when computing
         the nonparametric tests."""
@@ -139,13 +144,10 @@ def get_analysis_args():
 
 # If script is executed/run, then do the stuff below
 if __name__ == '__main__':
-
-    # Temporary global vars
-    iterations = 20
-    significance_level = 0.025
-
     # Retrieve command line arguments
     args = get_analysis_args()
+    iterations = args.n_iterations
+    significance_level = args.alpha
 
     # Check intersubject method arguments
     if args.entire:
@@ -163,7 +165,7 @@ if __name__ == '__main__':
     else:
         nonparam_method = None
 
-    # Exit if both method arguments are None
+    # Error if both method arguments are None
     assert intersub_method != nonparam_method, 'Provide at least one method argument'
     
     # Perform the chosen intersubject analysis
@@ -179,21 +181,18 @@ if __name__ == '__main__':
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-                                nonparam_method, iterations, significance_level,
-                                )
-
-
-        if nonparam_method == 'perm_signflip':
-            results = perm_signflip(intersubject['entire'], iterations, sig_level=significance_level)
+                                nonparam_method, iterations, significance_level)
+        print(f"...'{nonparam_method} nonparametric test method performed succesfully.")
+    except:
+        print(f"...'{nonparam_method} nonparametric test method failed to complete :'(")
 
     # Save results
     # - arrays
     # - figures
+    # NOTE: currently assumes that both interub and nonparam analyses have been performed
     if args.save_data:
-
-        # NOTE: generic filename for now
-        file_ = 'results.npy' 
+        results_file = f'{intersub_method}_{nonparam_method}_results.npy' 
         output_path = get_setting('output')
-        filepath = os.path.join(output_path, file_)
-        save_data(filepath, results)
+        filepath = os.path.join(output_path, results_file)
+        save_data(filepath, nonparam_results)
         
