@@ -97,39 +97,40 @@ def unique_tri(array):
     r, c = np.triu_indices(m,1)
     return array[r,c]
 
-# Computes pairwise voxel correlations between two matrices
-def pairwise_r(x_input, y_input):
-    # Compute Pearsons' R for every x,y combination
-    # Note: 
-    # - allows for (i,j) and (j,i)
-    # - symmetry depends on whether x == y
-    # - final matrix shape can be non-square
+# Computes Pearson correlation coefficient between two matrices
+def compute_r(a, b, compare_index='pairwise', axis=0):
+    """
+    Compute Pearsons' R for every x,y combination
+    Note: 
+    - allows for (i,j) and (j,i)
+    - symmetry depends on whether x == y
+    - final matrix shape can be non-square
+    """
 
-    # Save data and their number of rows
-    r_matrix = np.array([])
-    
-    x = x_input
-    y = y_input
-    x_len, y_len = len(x), len(y) # default lengths of inputs
+    # rows are vars: change cols to rows if other axis is desired
+    if axis==1:
+        a, b = a.T, b.T
 
-    # Reshape 1d data to matrix with 1 row
-    if x.ndim == 1:
-        x = x.reshape((1, x_len))
-        x_len = 1
-    
-    if y.ndim == 1:
-        y = y.reshape((1, y_len))
-        y_len = 1
+    # Reshape 1d data into 2d array with 1 row
+    if a.ndim == 1:
+        a = a[np.newaxis, :]
+    if b.ndim == 1:
+        b = b[np.newaxis, :]
     
     # Correlate every combination of (x,y) pairs of rows
-    for i in range(x_len):
-        for j in range(y_len):
-            r_i = np.corrcoef(x[i], y[j])[0,1]
-            r_matrix = np.append(r_matrix, r_i)
-            
-    # Reshape into matrix and tranpose to correct x and y axes positions
-    r_matrix = r_matrix.reshape((x_len, y_len)).T
-    return r_matrix
+    if compare_index == 'pairwise':
+        r_array = np.full((b.shape[0], a.shape[0]), np.nan)
+        for i, b_row in enumerate(b):
+            for j, a_row in enumerate(a):
+                r_array[i, j] = np.corrcoef(a_row, b_row)[0, 1]
+
+    elif compare_index == 'same':
+        shortest_row = sorted([a.shape[0], b.shape[0]])[0] # first item is shortest
+        r_array = np.full(shortest_row, np.nan)
+        for i, row in enumerate(zip(a, b)):
+            r_array[i] = np.corrcoef(row[0], row[1])[0, 1]
+
+    return r_array
 
 # Function to easily choose the averaging method for a matrix of correlation coefficients
 def r_mean(x, method='median', axis=None, fisher_method='short'):

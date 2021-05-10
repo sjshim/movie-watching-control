@@ -5,7 +5,7 @@
 import numpy as np
 
 from .tools import save_data
-from .basic_stats import pairwise_r, r_mean
+from .basic_stats import compute_r, r_mean
 
 # class for computing whole sample and witihin-between group ISFC and ISC.
 class Intersubject:
@@ -124,7 +124,7 @@ class Intersubject:
                 temp_avg = numer / denom.reshape((denom.shape[0], 1))
 
             # Compute ISFC correlation between subject and average-minus-one
-            isfc_matrix = pairwise_r(data, temp_avg)
+            isfc_matrix = compute_r(data, temp_avg)
             
             return isfc_matrix
 
