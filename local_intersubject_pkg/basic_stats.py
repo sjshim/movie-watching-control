@@ -133,7 +133,7 @@ def compute_r(a, b, compare_index='pairwise', axis=0):
     return r_array
 
 # Function to easily choose the averaging method for a matrix of correlation coefficients
-def r_mean(x, method='median', axis=None, fisher_method='short'):
+def r_average(x, method='median', axis=None, fisher_method='short'):
     """
     Method can be
     - median (default)
@@ -141,18 +141,18 @@ def r_mean(x, method='median', axis=None, fisher_method='short'):
     - mean (not recommended, but included for comparison purposes)
     """
     if method=='median':
-        r_mean = np.median(x, axis=axis)
+        r_average = np.median(x, axis=axis)
     
     elif method=='fisher':
         if fisher_method=='short': # uses arctanh / tanh (inverse transform)
-            r_mean = np.mean(fisher_transform(x), axis=axis) # get mean z values
-            r_mean = fisher_transform(r_mean, output_type='r') # turn mean z-values back into r
+            r_average = np.mean(fisher_transform(x), axis=axis) # get mean z values
+            r_average = fisher_transform(r_average, output_type='r') # turn mean z-values back into r
 
         elif fisher_method=='long': # calculates transformation the long way
-            r_mean = np.mean(fisher_transform(x, method='long'), axis=axis)
-            r_mean = fisher_transform(r_mean, output_type='r', method='long')
+            r_average = np.mean(fisher_transform(x, method='long'), axis=axis)
+            r_average = fisher_transform(r_average, output_type='r', method='long')
     
     elif method=='mean':
-        r_mean = np.mean(x, axis=axis)
+        r_average = np.mean(x, axis=axis)
 
-    return r_mean
+    return r_average

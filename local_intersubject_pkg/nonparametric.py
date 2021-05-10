@@ -5,7 +5,7 @@ from multiprocessing import Pool
 
 import numpy as np
 
-from .basic_stats import r_mean
+from .basic_stats import r_average
 from local_intersubject_pkg.intersubject import Intersubject
 
 def tail_null(fake_average, true_average, tail='upper'):
@@ -210,7 +210,7 @@ def perm_signflip(x, n_iter, tail='two', average_method='median', shuffle_method
     if x_avg != None:
         true_average = x_avg
     else:    
-        true_average = r_mean(x_matrix, method=average_method, axis=1)
+        true_average = r_average(x_matrix, method=average_method, axis=1)
     
     # Check for seed input
     if seed == None:
@@ -243,7 +243,7 @@ def perm_signflip(x, n_iter, tail='two', average_method='median', shuffle_method
             
         # Create null distribution by multiplying data by 1 or -1; then average across voxels
         x_permuted = x_matrix * sign_flip
-        fake_average = r_mean(x_permuted, method=average_method, axis=1)
+        fake_average = r_average(x_permuted, method=average_method, axis=1)
 
         # Upper one-tailed test for each average voxel
         # Null hypothesis: True average is not greater than Null average
@@ -367,7 +367,7 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
 
         # Calculate the null distribution average, then compare with real average
         fake_average = perm_inter.isc['within'] - perm_inter.isc['between']
-        fake_average = r_mean(fake_average, axis=1)
+        fake_average = r_average(fake_average, axis=1)
 
         this_count = tail_null(fake_average, x_avg, tail)
         perm_output = perm_output + this_count
@@ -399,7 +399,7 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
 
 #         # Create null distribution by multiplying voxel averages by 1 or -1; then average across voxels
 #         x_permuted = x_matrix * sign_flip
-#         fake_average = r_mean(x_permuted, method=average_method, axis=1)
+#         fake_average = r_average(x_permuted, method=average_method, axis=1)
 
 #         # Upper one-tailed test for each average voxel
 #         # Null hypothesis: True average is not greater than Null average

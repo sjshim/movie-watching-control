@@ -5,7 +5,7 @@
 import numpy as np
 
 from .tools import save_data
-from .basic_stats import compute_r, r_mean
+from .basic_stats import compute_r, r_average
 
 # class for computing whole sample and witihin-between group ISFC and ISC.
 class Intersubject:
