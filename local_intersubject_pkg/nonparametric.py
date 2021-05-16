@@ -214,7 +214,7 @@ def perm_signflip(x, n_iter, tail='two', average_method='median', shuffle_method
     
     # Check for seed input
     if seed == None:
-        seed = 420 #lol
+        seed = 420
         
     # Check computation method to use
     if compute_method == 'null_count':
@@ -284,7 +284,8 @@ def perm_grouplabel(x_avg, data_path, sub_id_dict, datasize, n_iter,
     against the real averaged data .
 
     NOTE: This function currently assumes that within-between ISC is being
-    tested, although it could still work for usual two-group comparisons.
+    tested, although it could technically be modified to  work for 
+    the usual between-group comparison.
 
     Parameters
     ----------
