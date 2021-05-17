@@ -13,22 +13,23 @@
 
 import os
 import sys
+import glob
 
 import numpy as np
 import nibabel as nib
 import matplotlib.pyplot as plt
 
 # import custom funcs
-import local_intersubject_pkg.tools as tools
-from subjects import subjects, subs_binge, subs_smoke
+from local_intersubject_pkg.tools import (create_fake_data, get_files_dict,
+                                        prep_data, create_directory)
+from subjects import subjects
 
 def setup_fake_data():
 
-    tools.create_fake_data(path_dict['fake_ids']+file_fake, id_list = subjects)
-    tools.create_fake_data(path_dict['fake_range']+file_fake, no_of_subjects = sub_range)
+    create_fake_data(path_dict['fake_ids']+file_fake, id_list = subjects)
+    create_fake_data(path_dict['fake_range']+file_fake, no_of_subjects = sub_range)
 
     # check if files are present
-    import glob
     for id_ in [i*2+1 for i in range(sub_range)]:
         for path in glob.iglob(path_dict['fake_range']+'/sub-{}.npy'.format(id_), recursive=True):
             print(path)
@@ -38,14 +39,14 @@ def setup_fake_data():
                 print('damn')
 
     # Get data id:filepath dicts, then save filtered data
-    ids_dict = tools.get_files_dict(path_dict['fake_ids'] + file_fake, subjects)
-    range_dict = tools.get_files_dict(path_dict['fake_range'] + file_fake, [i*2+1 for i in range(sub_range)])
+    ids_dict = get_files_dict(path_dict['fake_ids'] + file_fake, subjects)
+    range_dict = get_files_dict(path_dict['fake_range'] + file_fake, [i*2+1 for i in range(sub_range)])
 
     # NOTE: make cutoff mean=0; it makes the data far too sparse for testing purpose (and might not even be useful
     # for IRL analysis). Mean cutoff was once originally 3000, a carryover from YC
     cutoffs = {'col': 10, 'mean': 0}
-    tools.prep_data(ids_dict, path_dict['filter_ids'] + file_filter, cutoffs['col'], cutoffs['mean'])
-    tools.prep_data(range_dict, path_dict['filter_range'] + file_filter, cutoffs['col'], cutoffs['mean'])
+    prep_data(ids_dict, path_dict['filter_ids'] + file_filter, cutoffs['col'], cutoffs['mean'])
+    prep_data(range_dict, path_dict['filter_range'] + file_filter, cutoffs['col'], cutoffs['mean'])
     
     return ids_dict, range_dict
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
 
     # Create each directory
     for path in path_dict:
-        tools.create_directory(path_dict[path])
+        create_directory(path_dict[path])
 
     sub_range = 15
 
