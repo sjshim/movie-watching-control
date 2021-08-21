@@ -60,14 +60,17 @@ def save_data(dir_, *args, **kwargs):
 # Get dict of each subject id and associated filepath
 def get_files_dict(path, id_list):
     """
-    Get dict of each subject id and its associated filepath. Intendedn for use
+    Get dict of each subject id and its associated filepath. Intended for use
     during data preparation, before analysis.
     """
-
     id_file_dict = {}
     for id_ in id_list:
-        for file in glob.iglob(path.format(id_), recursive=True):
-            id_file_dict[id_] = file
+        try:
+            glob_pattern = path.format(id_)
+            for file in glob.iglob(glob_pattern, recursive=True):
+                id_file_dict[id_] = file
+        except:
+            print(f"Failed to retrieve filepath for subject {id_} using glob pattern...\n{glob_pattern}")
     return id_file_dict
 
 def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, return_sub_id=False):
@@ -118,8 +121,10 @@ def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
     # - include filepath dict function somewhere?
 
     # 1) Retrieve settings settings file NIFTI path
+    # ?) get files dict
+    # ?) get subjects list from .json settings file
     # 2) check TR if true, save results to settings file parameters
-    # 3) covert NIFTI to npy if true, save files to settings file npy path default
+    # 3) convert NIFTI to npy if true, save files to settings file npy path default
     # or user-defined path
 
     # Get settings file Nifti path
@@ -132,23 +137,18 @@ def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
     except Exception:
         print("Couldn't retrieve nifti_path from script_settings.json")
 
-    # Get the lowest TR
-    cutoff_column = check_datasizes(files_dict)
-
-    # convert data
+    # TODO: my detect TR function makes prep_data incompatible with loading .npy; this should be fixed somehow
+    # Load data
+    cutoff_column = check_datasizes(files_dict) # get lowest TR from nifti files
     for id_ in files_dict:
         id_path = files_dict[id_]
-
+        # Check for numpy.npy or NIfTI file
         try:
-            # checks for numpy.npy file 
             if id_path.endswith(".npy"):
                 data = np.load(id_path)
-                
-            # checks for NiFti /*.nii.gz file
-            # NOTE: this may be broken; I am using the value as a key for the same dict level
-            # (8/18/21) to clarify, id_path should already be the value taken from files_dict, but is used as a key again here 
             elif id_path.endswith(".gz"):
-                data = nib.load(files_dict[id_path]).get_fdata()[:,:,:, 0: cutoff_column]
+                
+                data = nib.load(id_path).get_fdata()[:,:,:, 0: cutoff_column]
         except:
             print("Unrecognized file type.")
             break
