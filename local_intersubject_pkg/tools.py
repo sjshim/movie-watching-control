@@ -53,6 +53,10 @@ def save_data(dir_, *args, **kwargs):
         # Log failure here
         print(dir_ + ' failed to create.\n')
 
+# ============================
+# Pre-analysis setup functions
+# ============================
+
 # Get dict of each subject id and associated filepath
 def get_files_dict(path, id_list):
     """
@@ -66,14 +70,72 @@ def get_files_dict(path, id_list):
             id_file_dict[id_] = file
     return id_file_dict
 
+def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, return_sub_id=False):
+    # Check data dimensions and shortest TR length
+    datasizes = {}
+    for sub in file_dict:
+        # NOTE: the .shape attr was chosen based on documentation and to make code more consise; 
+        # this has not been tested yet and may not work as intended (7/16/21)
+        datasizes[sub] = nib.load(file_dict[sub]).shape
+
+    # Return error if 3d volume dimensions are not equal between subjects i and i-1
+    if check_3d_equality:
+        last_ds = {}
+        for this_sub in datasizes:
+            if not last_ds:
+                last_ds[this_sub] = datasizes[this_sub]
+            else:
+                last_sub = list(last_ds.keys())[0]
+                this_ds = datasizes[this_sub]
+                # BUG: this line causes unhashable error because last_ds is a dict, not a tuple like expected. Is the last_ds dict even necessary?
+                # (8/18/21) Yes, because I created the option of returning lowest-TR subject's entire datasize, so it is conveninent to use their sub as a key in a dict
+                assert last_ds[last_sub][:3] == this_ds[:3], \
+                    f"All subjects must have same 3d shape; previous sub {last_sub} had \
+                        {last_ds[last_sub]} while current sub {this_sub} had {this_ds}"
+                del last_ds[last_sub]
+                last_ds[this_sub] = this_ds
+
+    # TODO: optionally return subject-id alongside their data dimensions
+    # Return lowest TR integer or 4d tuple containing lowest TR (4th dim)
+    min_tr = min([datasizes[i][3] for i in datasizes])
+    # NOTE: this optional tuple return currently depends on last_ds from the check_3d_equality arg; ensure whether this dependency is necessary
+    if return_4d_tuple:
+        return (*last_ds[sub][:3], min_tr)
+    else:
+        return min_tr
+
 # Reshape 4d fmri data into 2d and save output as .npy filetype
+# NOTE: Should I separate the following into funcitons?
+# get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
+# I feel that this way, I can definitively feed prep_data only settings_file.json info
 def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
     .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
     numpy array.
     """
-    
+    # notes: outline of the steps
+    # - include filepath dict function somewhere?
+
+    # 1) Retrieve settings settings file NIFTI path
+    # 2) check TR if true, save results to settings file parameters
+    # 3) covert NIFTI to npy if true, save files to settings file npy path default
+    # or user-defined path
+
+    # Get settings file Nifti path
+    settings_file = "script_settings.json"
+    with open(settings_file) as file_:
+        config = json.load(file_)
+    try:
+        nifti_path = config['Paths']['nifti_path']
+        assert nifti_path != '', "Paths/nifti_path must be defined in script_settings.json"
+    except Exception:
+        print("Couldn't retrieve nifti_path from script_settings.json")
+
+    # Get the lowest TR
+    cutoff_column = check_datasizes(files_dict)
+
+    # convert data
     for id_ in files_dict:
         id_path = files_dict[id_]
 
@@ -82,7 +144,9 @@ def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
             if id_path.endswith(".npy"):
                 data = np.load(id_path)
                 
-            # checks for NiFti /*.nii.gz file 
+            # checks for NiFti /*.nii.gz file
+            # NOTE: this may be broken; I am using the value as a key for the same dict level
+            # (8/18/21) to clarify, id_path should already be the value taken from files_dict, but is used as a key again here 
             elif id_path.endswith(".gz"):
                 data = nib.load(files_dict[id_path]).get_fdata()[:,:,:, 0: cutoff_column]
         except:
@@ -131,7 +195,7 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
 
 def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=None):
     """
-    Get details from the script settings file.
+    Get details from the script settings JSON file created for this analysis.
     """
     # Get datapaths
     settings_file = "script_settings.json"
