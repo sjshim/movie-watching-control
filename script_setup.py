@@ -34,7 +34,8 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
 
     # Setup parameters needed between scripts
     parameters = {
-        "datasize" : (4, 4, 4, 10)
+        "datasize" : (4, 4, 4, 10),
+        "sub_ids": {}
     }
 
     # Setup paths for fake test data

@@ -21,7 +21,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-from local_intersubject_pkg.tools import save_data, get_setting
+from local_intersubject_pkg.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
 from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 
@@ -74,16 +74,7 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, sto
         nonparam = perm_grouplabel(data_avg, data_path, sub_ids, datasize,
                 iterations, sig_level=sig_level)
 
-    # elif method == 'perm_grouplabel':
-    #     nonparam = perm_grouplabel()
-
     return nonparam
-
-# def run_prep_data():
-
-#     nifti_path = 
-#     npy_path
-    
 
 def get_analysis_args():
 
@@ -136,16 +127,17 @@ def get_analysis_args():
    
     return parser.parse_args()
 
-
-# If script is executed/run, then do the stuff below
-if __name__ == '__main__':
-
+def main():
     # Temporary global vars
     iterations = 20
     significance_level = 0.025
 
     # Retrieve command line arguments
     args = get_analysis_args()
+
+    # Optionally prep data
+    if args.prep_data:
+        prep_data(get_setting('nifti'))
 
     # Check intersubject method arguments
     if args.entire:
@@ -166,34 +158,39 @@ if __name__ == '__main__':
     # Exit if both method arguments are None
     assert intersub_method != nonparam_method, 'Provide at least one method argument'
     
+    # ========================================
     # Perform the chosen intersubject analysis
     try:
         if intersub_method != None:
             intersub_results = choose_intersubject(intersub_method)
-
-        print(f"...'{intersub_method}' intersubject method performed successfully.")
+            print(f"...'{intersub_method}' intersubject method performed successfully.")
     except:
         print(f"...'{intersub_method}' intersubject method failed to complete :'(")
 
-    # Do a nonparametric test
+    # ==========================
+    # Perform nonparametric test
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-                                nonparam_method, iterations, significance_level,
-                                )
+                                nonparam_method, iterations, significance_level)
+            print(f"...'{nonparam_method}' nonparametric test performed successfully.")
+    except:
+        print(f"...'{nonparam_method}' nonparametric test performed successfully.")
 
-
-        if nonparam_method == 'perm_signflip':
-            results = perm_signflip(intersubject['entire'], iterations, sig_level=significance_level)
-
+    # NOTE: this is currently inflexible to selectively saving results for ISC
+    # on its own without permutation test thresholding; I might want to 
+    # change this in the future
+    #
     # Save results
+    # - optional isc and/or thresholded results
     # - arrays
     # - figures
     if args.save_data:
-
-        # NOTE: generic filename for now
-        file_ = 'results.npy' 
+        file_ = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
         output_path = get_setting('output')
         filepath = os.path.join(output_path, file_)
-        save_data(filepath, results)
-        
+        save_data(filepath, nonparam_results)
+
+# If script is executed/run, then do the stuff below
+if __name__ == '__main__':
+    main()

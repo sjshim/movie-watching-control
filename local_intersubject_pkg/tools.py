@@ -60,8 +60,11 @@ def save_data(dir_, *args, **kwargs):
 # Get dict of each subject id and associated filepath
 def get_files_dict(path, id_list):
     """
-    Get dict of each subject id and its associated filepath. Intended for use
-    during data preparation, before analysis.
+    Get dict of each subject id and its associated filepath. The supplied filepath
+    should contain curly brackets for string formatting with subject ids; it can
+    contain glob patterns where necessary.
+
+    Intended for use during data preparation, before analysis.
     """
     id_file_dict = {}
     for id_ in id_list:
@@ -111,11 +114,17 @@ def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, re
 # NOTE: Should I separate the following into funcitons?
 # get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
 # I feel that this way, I can definitively feed prep_data only settings_file.json info
-def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
+def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=None):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
     .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
     numpy array.
+
+    Parameters
+    ----------
+    files_dict : dict
+        Dict where key is a subject id and value is the subject's specific nifti filepath
+
     """
     # notes: outline of the steps
     # - include filepath dict function somewhere?
@@ -127,17 +136,34 @@ def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
     # 3) convert NIFTI to npy if true, save files to settings file npy path default
     # or user-defined path
 
-    # Get settings file Nifti path
+    # Setup nifti and output paths
     settings_file = "script_settings.json"
     with open(settings_file) as file_:
         config = json.load(file_)
     try:
-        nifti_path = config['Paths']['nifti_path']
+        if nifti_path is None:
+            # nifti_path from script_settings.json is assumed to include have 
+            # brackets for str formatting
+            nifti_path = config['Paths']['nifti_path']
         assert nifti_path != '', "Paths/nifti_path must be defined in script_settings.json"
-    except Exception:
-        print("Couldn't retrieve nifti_path from script_settings.json")
+        if output_path is None:
+            output_path = config['Paths']['npy_path']
+        assert output_path != '', "Paths/npy_path must be defined in script_settings.json"
+        
+        # TODO: add subject ids to script_settings.json and/or script_setup()
+        if files_dict is None:
+            sub_ids = config['Parameters']['sub_ids']['all']
 
-    # TODO: my detect TR function makes prep_data incompatible with loading .npy; this should be fixed somehow
+    except Exception:
+        print("Couldn't retrieve nifti_path or npy_path from script_settings.json")
+
+    # Get files dict
+    if files_dict is None:
+        try:
+            files_dict = get_files_dict(nifti_path, sub_ids)
+        except:
+            print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
+
     # Load data
     cutoff_column = check_datasizes(files_dict) # get lowest TR from nifti files
     for id_ in files_dict:
@@ -145,22 +171,22 @@ def prep_data(files_dict, output_path, cutoff_column=None, cutoff_mean=None):
         # Check for numpy.npy or NIfTI file
         try:
             if id_path.endswith(".npy"):
-                data = np.load(id_path)
+                data = np.load(id_path) # .npy files are assumed to have same dimensions
             elif id_path.endswith(".gz"):
-                
                 data = nib.load(id_path).get_fdata()[:,:,:, 0: cutoff_column]
         except:
             print("Unrecognized file type.")
             break
 
-        datasize = np.array(data.shape)
-
         # reshape 4d array to matrix
         # Note: rows=voxels, columns=TRs
+        datasize = data.shape
         data = data.reshape((datasize[0] * datasize[1] * datasize[2]),
                             datasize[3]).astype(np.float32)
         
-        # create boolean mask based on each voxel's mean
+        # create boolean mask based on each voxel's mean (optional)
+        if cutoff_mean is None:
+            cutoff_mean = np.min(data, axis=1)
         mask = np.mean(data, axis=1) > cutoff_mean
         
         # filter voxels using mask
@@ -226,7 +252,7 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=N
             output = config['Paths']['data_outputs']
 
         # Double check that directory exists
-        assert os.path.exists(output), f"The path...\n{data_path}\n...could not be found or does not exist."
+        assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
     
     except:
         print(f" :(   ...could not retrieve details from settings file {settings_file}...   :(")
