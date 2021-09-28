@@ -34,7 +34,8 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
 
     # Setup parameters needed between scripts
     parameters = {
-        "datasize" : (4, 4, 4, 10)
+        "datasize" : (4, 4, 4, 10),
+        "sub_ids": {}
     }
 
     # Setup paths for fake test data
@@ -69,12 +70,15 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
     # Create directories if requested
     if create_dir:
         main_sections.pop("Parameters", None)
-
-        for main in main_sections:
-            for sub in main_sections[main]:
-
-                path = main_sections[main][sub]
-                create_directory(path)
+        try:
+            print(f"\nCreating directories...")
+            for main in main_sections:
+                for sub in main_sections[main]:
+                    if sub not in ['nifti_path', settings_file]:
+                        create_directory(main_sections[main][sub])
+            print(f"...succesfully created directories.\n")
+        except:
+            print(f"...failed to create directories.\n")
 
 
 def get_setup_arguments():
@@ -133,7 +137,7 @@ if __name__ == "__main__":
     print(f'Making json settings file...')
     print(f"Nifti path: \n--> '{nifti_path}'")
     print(f"Project path: \n--> '{project_path}'")
-    print(f"Data destination: \n--> '{project_path}'")
+    print(f"Data destination: \n--> '{data_dest}'")
 
     # Make the settings file!
     create_script_settings(nifti_path, project_path, data_dest, create_dir)

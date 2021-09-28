@@ -21,7 +21,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 
-from local_intersubject_pkg.tools import save_data, get_setting
+from local_intersubject_pkg.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
 from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 
@@ -74,16 +74,7 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, sto
         nonparam = perm_grouplabel(data_avg, data_path, sub_ids, datasize,
                 iterations, sig_level=sig_level)
 
-    # elif method == 'perm_grouplabel':
-    #     nonparam = perm_grouplabel()
-
     return nonparam
-
-# def run_prep_data():
-
-#     nifti_path = 
-#     npy_path
-    
 
 def get_analysis_args():
 
@@ -111,14 +102,15 @@ def get_analysis_args():
     )
 
     parser.add_argument(
-        "-i", "--n_iterations", default=20, type=int,
-        help="""Number of iterations for nonparametric test to perform."""
+        "-a", "--alpha", default=0.05, type=int,
+        help="""The significance level to threshold data when computing
+        the nonparametric tests. Default value is 0.05"""
     )
 
     parser.add_argument(
-        "-a", "--alpha", default=0.05, type=int,
-        help="""The significance level to threshold data when computing
-        the nonparametric tests."""
+        "-i", "--iterations", default=100, type=int,
+        help="""The number of iterations to be performed by the isc permutation
+        tests. Default value is 100."""
     )
 
     parser.add_argument(
@@ -133,6 +125,11 @@ def get_analysis_args():
         output path"""
     )
 
+    parser.add_argument(
+        "-v", "--visualize", action="store_true",
+        help="""Visualize results. NOTE: beta feature, very inflexible atm."""
+    )
+
     # parser.add_argument(
     #     "-i", "--intersub_method", 
     #     choices=['entire', 'within-between'],
@@ -141,13 +138,13 @@ def get_analysis_args():
    
     return parser.parse_args()
 
-
-# If script is executed/run, then do the stuff below
-if __name__ == '__main__':
+def main():
     # Retrieve command line arguments
     args = get_analysis_args()
-    iterations = args.n_iterations
-    significance_level = args.alpha
+
+    # Optionally prep data
+    if args.prep_data:
+        prep_data(get_setting('nifti'))
 
     # Check intersubject method arguments
     if args.entire:
@@ -168,31 +165,41 @@ if __name__ == '__main__':
     # Error if both method arguments are None
     assert intersub_method != nonparam_method, 'Provide at least one method argument'
     
+    # ========================================
     # Perform the chosen intersubject analysis
     try:
         if intersub_method != None:
             intersub_results = choose_intersubject(intersub_method)
-
-        print(f"...'{intersub_method}' intersubject method performed successfully.")
+            print(f"...'{intersub_method}' intersubject method performed successfully.")
     except:
         print(f"...'{intersub_method}' intersubject method failed to complete :'(")
 
-    # Do a nonparametric test
+    # ==========================
+    # Perform nonparametric test
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-                                nonparam_method, iterations, significance_level)
-        print(f"...'{nonparam_method} nonparametric test method performed succesfully.")
-    except:
-        print(f"...'{nonparam_method} nonparametric test method failed to complete :'(")
 
+                                nonparam_method, args.iterations, args.alpha)
+            print(f"...'{nonparam_method}' nonparametric test performed successfully.")
+    except:
+        print(f"...'{nonparam_method}' nonparametric test failed to complete.")
+
+    # NOTE: this is currently inflexible to selectively saving results for ISC
+    # on its own without permutation test thresholding; I might want to 
+    # change this in the future
+    #
     # Save results
+    # - optional isc and/or thresholded results
     # - arrays
     # - figures
     # NOTE: currently assumes that both interub and nonparam analyses have been performed
     if args.save_data:
-        results_file = f'{intersub_method}_{nonparam_method}_results.npy' 
+        results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
         output_path = get_setting('output')
         filepath = os.path.join(output_path, results_file)
         save_data(filepath, nonparam_results)
-        
+
+# If script is executed/run, then do the stuff below
+if __name__ == '__main__':
+    main()
