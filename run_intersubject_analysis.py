@@ -104,7 +104,13 @@ def get_analysis_args():
     parser.add_argument(
         "-a", "--alpha", default=0.05, type=int,
         help="""The significance level to threshold data when computing
-        the nonparametric tests."""
+        the nonparametric tests. Default value is 0.05"""
+    )
+
+    parser.add_argument(
+        "-i", "--iterations", default=100, type=int,
+        help="""The number of iterations to be performed by the isc permutation
+        tests. Default value is 100."""
     )
 
     parser.add_argument(
@@ -119,6 +125,11 @@ def get_analysis_args():
         output path"""
     )
 
+    parser.add_argument(
+        "-v", "--visualize", action="store_true",
+        help="""Visualize results. NOTE: beta feature, very inflexible atm."""
+    )
+
     # parser.add_argument(
     #     "-i", "--intersub_method", 
     #     choices=['entire', 'within-between'],
@@ -128,10 +139,6 @@ def get_analysis_args():
     return parser.parse_args()
 
 def main():
-    # Temporary global vars
-    iterations = 20
-    significance_level = 0.025
-
     # Retrieve command line arguments
     args = get_analysis_args()
 
@@ -172,7 +179,7 @@ def main():
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-                                nonparam_method, iterations, significance_level)
+                                nonparam_method, args.iterations, args.alpha)
             print(f"...'{nonparam_method}' nonparametric test performed successfully.")
     except:
         print(f"...'{nonparam_method}' nonparametric test performed successfully.")
