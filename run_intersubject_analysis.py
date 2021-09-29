@@ -20,6 +20,7 @@ import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from local_intersubject_pkg.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
@@ -75,6 +76,24 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, sto
                 iterations, sig_level=sig_level)
 
     return nonparam
+
+def save_visualization(result, *method_names):
+
+    # NOTE: currently, should very simply produce a heatmap for ISC. 
+    # TODO: in the future, this script should also
+    #   - save figures for ISFC
+    #   - be useable for all potential figures that this analysis will need;
+    #       even for IS-RSA potentially. It will need to be decided in the 
+    #       future whether this script handles fmri, behavioral, and 
+    #       fmri x behavioral (IS-RSA) analyses
+    #   - plotting brain projections
+
+    # =====
+    fig, ax = plt.subplots(figsize=(12, 7))
+    sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
+    plt.title(" ".join(method_names) + "heatmap")
+    file_name = "_".join(method_names) + "results_heatmap.png"
+    plt.savefig(file_name)
 
 def get_analysis_args():
 
@@ -185,6 +204,12 @@ def main():
     except:
         print(f"...'{nonparam_method}' nonparametric test failed to complete.")
 
+    # NOTE: currently inflexible way of dealing with two optional output types
+    if nonparam_method is not None:
+        final_results = nonparam_results
+    elif intersub_method is not None:
+        final_results = intersub_method
+
     # NOTE: this is currently inflexible to selectively saving results for ISC
     # on its own without permutation test thresholding; I might want to 
     # change this in the future
@@ -198,8 +223,9 @@ def main():
         results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
         output_path = get_setting('output')
         filepath = os.path.join(output_path, results_file)
-        save_data(filepath, nonparam_results)
-
+        save_data(filepath, final_results)
+    if args.visualize:
+        save_visualization(final_results, intersub_method, nonparam_method)
 # If script is executed/run, then do the stuff below
 if __name__ == '__main__':
     main()
