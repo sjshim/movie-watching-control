@@ -30,13 +30,17 @@ from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 from subjects import subjects, subs_binge, subs_smoke
 
 
-def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='range_ids'):
+def choose_intersubject(method, out_type=None, use_fake_data=False, 
+                        which_fake='range_ids'):
     # do intersubject analysis
 
     # Get data path
     # NOTE: Currently assumes that simulated data should be used
     # and ignoring use_fake_data positional argument
-    data_path = get_setting('input',  which_fake='range_ids')
+    if use_fake_data:
+        data_path = get_setting('input',  which_fake=which_fake)
+    else:
+        data_path = get_setting('input', which_input='npy')
     datasize = get_setting(which_param='datasize')
 
     # Create Intersubject object
@@ -44,7 +48,6 @@ def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='
     
     if method == 'entire':
         intersubject.group_isfc(subjects)
-
     elif method == 'within_between':
         intersubject.group_isfc({'binge': subs_binge, 'smoke': subs_smoke},
                                 compare_method='within_between')
@@ -57,7 +60,8 @@ def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='
     else:
         return intersubject
 
-def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, stored_data=None):
+def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, 
+                        stored_data=None):
     # do nonparametric tests
 
     # TODO: optionally retrieve data from storage
@@ -198,7 +202,6 @@ def main():
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-
                                 nonparam_method, args.iterations, args.alpha)
             print(f"...'{nonparam_method}' nonparametric test performed successfully.")
     except:
