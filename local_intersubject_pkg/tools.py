@@ -151,20 +151,18 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
         assert output_path != '', "Paths/npy_path must be defined in script_settings.json"
         
         # TODO: add subject ids to script_settings.json and/or script_setup()
+        # Get files dict
         if files_dict is None:
-            sub_ids = config['Parameters']['sub_ids']['all']
-
+            try:
+                sub_ids = config['Parameters']['sub_ids']['all']
+                assert (not sub_ids) is False, "['sub ids']['all'] cannot be empty"
+                files_dict = get_files_dict(nifti_path, sub_ids)
+            except:
+                print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
     except Exception:
         print("Couldn't retrieve nifti_path or npy_path from script_settings.json")
 
-    # Get files dict
-    if files_dict is None:
-        try:
-            files_dict = get_files_dict(nifti_path, sub_ids)
-        except:
-            print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
-
-    # Load data
+    # Check for datasize and minimum-TR across all subjects' time-series
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
     cutoff_column = datasize[3] # get lowest TR from nifti files
 
