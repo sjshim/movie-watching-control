@@ -20,6 +20,7 @@ import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 from local_intersubject_pkg.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
@@ -29,13 +30,17 @@ from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 from subjects import subjects, subs_binge, subs_smoke
 
 
-def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='range_ids'):
+def choose_intersubject(method, out_type=None, use_fake_data=False, 
+                        which_fake='range_ids'):
     # do intersubject analysis
 
     # Get data path
     # NOTE: Currently assumes that simulated data should be used
     # and ignoring use_fake_data positional argument
-    data_path = get_setting('input',  which_fake='range_ids')
+    if use_fake_data:
+        data_path = get_setting('input',  which_fake=which_fake)
+    else:
+        data_path = get_setting('input', which_input='npy')
     datasize = get_setting(which_param='datasize')
 
     # Create Intersubject object
@@ -43,7 +48,6 @@ def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='
     
     if method == 'entire':
         intersubject.group_isfc(subjects)
-
     elif method == 'within_between':
         intersubject.group_isfc({'binge': subs_binge, 'smoke': subs_smoke},
                                 compare_method='within_between')
@@ -56,7 +60,8 @@ def choose_intersubject(method, out_type=None, use_fake_data=False, which_fake='
     else:
         return intersubject
 
-def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, stored_data=None):
+def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, 
+                        stored_data=None):
     # do nonparametric tests
 
     # TODO: optionally retrieve data from storage
@@ -75,6 +80,24 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, sto
                 iterations, sig_level=sig_level)
 
     return nonparam
+
+def save_visualization(result, *method_names):
+
+    # NOTE: currently, should very simply produce a heatmap for ISC. 
+    # TODO: in the future, this script should also
+    #   - save figures for ISFC
+    #   - be useable for all potential figures that this analysis will need;
+    #       even for IS-RSA potentially. It will need to be decided in the 
+    #       future whether this script handles fmri, behavioral, and 
+    #       fmri x behavioral (IS-RSA) analyses
+    #   - plotting brain projections
+
+    # =====
+    fig, ax = plt.subplots(figsize=(12, 7))
+    sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
+    plt.title(" ".join(method_names) + "heatmap")
+    file_name = "_".join(method_names) + "results_heatmap.png"
+    plt.savefig(file_name)
 
 def get_analysis_args():
 
@@ -179,11 +202,16 @@ def main():
     try: 
         if nonparam_method != None:
             nonparam_results = choose_nonparametric(intersub_results, 
-
                                 nonparam_method, args.iterations, args.alpha)
             print(f"...'{nonparam_method}' nonparametric test performed successfully.")
     except:
         print(f"...'{nonparam_method}' nonparametric test failed to complete.")
+
+    # NOTE: currently inflexible way of dealing with two optional output types
+    if nonparam_method is not None:
+        final_results = nonparam_results
+    elif intersub_method is not None:
+        final_results = intersub_method
 
     # NOTE: this is currently inflexible to selectively saving results for ISC
     # on its own without permutation test thresholding; I might want to 
@@ -198,8 +226,9 @@ def main():
         results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
         output_path = get_setting('output')
         filepath = os.path.join(output_path, results_file)
-        save_data(filepath, nonparam_results)
-
+        save_data(filepath, final_results)
+    if args.visualize:
+        save_visualization(final_results, intersub_method, nonparam_method)
 # If script is executed/run, then do the stuff below
 if __name__ == '__main__':
     main()
