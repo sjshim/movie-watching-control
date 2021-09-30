@@ -81,7 +81,7 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None,
 
     return nonparam
 
-def save_visualization(result, *method_names):
+def save_visualization(result, output_path, *method_names):
 
     # NOTE: currently, should very simply produce a heatmap for ISC. 
     # TODO: in the future, this script should also
@@ -97,7 +97,7 @@ def save_visualization(result, *method_names):
     sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
     plt.title(" ".join(method_names) + "heatmap")
     file_name = "_".join(method_names) + "results_heatmap.png"
-    plt.savefig(file_name)
+    plt.savefig(os.path.join(output_path, file_name))
 
 def get_analysis_args():
 
@@ -228,7 +228,7 @@ def main():
         filepath = os.path.join(output_path, results_file)
         save_data(filepath, final_results)
     if args.visualize:
-        save_visualization(final_results, intersub_method, nonparam_method)
+        save_visualization(final_results, output_path, intersub_method, nonparam_method)
 # If script is executed/run, then do the stuff below
 if __name__ == '__main__':
     main()

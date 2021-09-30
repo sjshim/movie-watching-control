@@ -1,0 +1,21 @@
+{
+    "Paths": {
+        "settings_path": "script_settings.json",
+        "project_path": "",
+        "data_dest": "",
+        "data_inputs": "",
+        "data_outputs": "",
+        "nifti_path": "",
+        "npy_path": ""
+    },
+    "Parameters": {
+        "datasize": [],
+        "sub_ids": {}
+    },
+    "Fake Data Paths": {
+        "real_ids": "",
+        "range_ids": "",
+        "filter_real": "",
+        "filter_range": ""
+    }
+}
