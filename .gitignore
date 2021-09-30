@@ -4,7 +4,7 @@
 **/__pycache__
 
 # Ignore these files
-EXAMPlE_script_settings.json
+EXAMPLE_script_settings.json
 requirements.txt
 *.egg-info
 *.code-workspace
