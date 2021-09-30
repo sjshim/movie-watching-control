@@ -165,7 +165,17 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
             print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
 
     # Load data
-    cutoff_column = check_datasizes(files_dict) # get lowest TR from nifti files
+    datasize = check_datasizes(files_dict, return_4d_tuple=True)
+    cutoff_column = datasize[3] # get lowest TR from nifti files
+
+    # NOTE: this is ugly and revisions should make getting_settings flexible
+    # for either retrieving or saving settings from script_settings.json
+    with open(settings_file) as file_:
+        config = json.load(file_)
+        config['Parameters']['datasize'] = datasize
+        json.dump(config, file_, indent=4)
+
+    # Process each subjects' data
     for id_ in files_dict:
         id_path = files_dict[id_]
         # Check for numpy.npy or NIfTI file
@@ -180,7 +190,7 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
 
         # reshape 4d array to matrix
         # Note: rows=voxels, columns=TRs
-        datasize = data.shape
+        datasize = data.shape # NOTE: this is the second datasize retrieval and could cause intended errors 
         data = data.reshape((datasize[0] * datasize[1] * datasize[2]),
                             datasize[3]).astype(np.float32)
         
