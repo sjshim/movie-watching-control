@@ -166,9 +166,9 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
     cutoff_column = datasize[3] # get lowest TR from nifti files
 
-    # NOTE: this is ugly and revisions should make getting_settings flexible
-    # for either retrieving or saving settings from script_settings.json
-    with open(settings_file) as file_:
+    # NOTE: this is ugly and revisions should make get_settings more flexible
+    # for either retrieving from or saving settings to script_settings.json
+    with open(settings_file, 'w') as file_:
         config = json.load(file_)
         config['Parameters']['datasize'] = datasize
         json.dump(config, file_, indent=4)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+# script_setup.py: Create `script_settings.json` containing data i/o directories
+# and other analysis parameters.
 import os
 import sys
 import argparse
@@ -8,7 +9,8 @@ import json
 
 from local_intersubject_pkg.tools import create_directory
 
-def create_script_settings(nifti_path, project_path, data_dest, create_dir):
+def create_script_settings(nifti_path, project_path, data_dest, 
+                            create_dir=False, sub_ids_json=None):
     """
     Create a configuration file containing filepaths, parameters, and other
     persistent info that are used by this analysis. The resulting file is
@@ -35,8 +37,18 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
     # Setup parameters needed between scripts
     parameters = {
         "datasize" : (),
-        "sub_ids": {"all":[]}
+        "sub_ids": {"all":[]} # default dict if a subject id json isn't provided
     }
+    # Retrieve subject id lists from a separate .json file if provided
+    if sub_ids_json is not None:
+        try:
+            with open(sub_ids_json) as file_:
+                sub_ids_dict = json.load(file_)
+                assert "all" in list(sub_ids_dict.keys()), "'all' key must exist within the provided subject id json file."
+                for label in sub_ids_json.keys():
+                    parameters['sub_ids'][label] = sub_ids_json[label]
+        except:
+            print(f"Failed to retrieve and save subject id lists from the provided file {sub_ids_json}.")
 
     # Setup paths for fake test data
     fake_paths = {
@@ -50,7 +62,7 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
         fake_paths[i] = os.path.join(paths['data_inputs'], *fake_paths[i])
 
     # =========================
-    # Save script settings file
+    # Save all script settings as a .json file
     main_sections = {
         'Paths': paths, 
         'Parameters': parameters, 
@@ -58,7 +70,6 @@ def create_script_settings(nifti_path, project_path, data_dest, create_dir):
     # main_subsections = [paths, parameters, fake_paths]
     
     try:
-        # save as .json file
         with open(settings_file, 'w') as outfile:
             json.dump(main_sections, outfile, indent=4)
         assert os.path.exists(settings_file)
@@ -85,17 +96,24 @@ def get_setup_arguments():
     # fancy command line arguments
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
+        "-s", "--sub_ids_json", default=None,
+        help="""Optional. Specify the name of a .json file containing a dict
+            where keys are group/condition labels and the subject id lists are
+            values. A key named 'all' containing all subject ids in the dataset
+            is required."""
+    )
+    parser.add_argument(
         "-n", "--nifti_path", default="",
         help="""The location of subjects' input Nifti data to use for analysis.
         This location will not be defined by default."""
     )
     parser.add_argument(
-        "-p", "--project_path", default = cwd,
+        "-p", "--project_path", default=None,
         help="""Optional; The location of this project. If not provided, 
         then it is defined as the current working directory of this script."""
     )
     parser.add_argument(
-        "-d", "--data_dest",
+        "-d", "--data_dest", default=None,
         help="""Optional; The parent data directory destination to accomadate a different
         location from the project directory containing the code. If not provided, then data_dest
         is made the same as project_path."""
@@ -109,10 +127,7 @@ def get_setup_arguments():
 
     return parser.parse_args()
 
-
-if __name__ == "__main__":
-    cwd = os.getcwd()
-
+def main():
     # Get arguments from command line
     args = get_setup_arguments()
 
@@ -120,12 +135,10 @@ if __name__ == "__main__":
     project_path = args.project_path
     create_dir = args.create_dir
 
-    if args.data_dest == None:
-        try:
-            assert project_path != None
-            data_dest = project_path
-        except:
-            print(f"{project_path} was not a valid entry")
+    if project_path is None:
+        project_path = os.getcwd()
+    if args.data_dest is None:
+        data_dest = project_path
     else:
         data_dest = args.data_dest
 
@@ -138,7 +151,11 @@ if __name__ == "__main__":
     print(f"Nifti path: \n--> '{nifti_path}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{data_dest}'")
+    print("\nPlease confirm that these are the correct directories for your analyses.")
 
     # Make the settings file!
-    create_script_settings(nifti_path, project_path, data_dest, create_dir)
+    create_script_settings(nifti_path, project_path, data_dest, create_dir,
+                            args.sub_ids_json)
 
+if __name__ == "__main__":
+    main()
