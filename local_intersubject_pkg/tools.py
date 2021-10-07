@@ -166,7 +166,7 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
     # NOTE: this is ugly and revisions should make get_settings more flexible
     # for either retrieving from or saving settings to script_settings.json
     settings_file = "script_settings.json"
-    with open(settings_file, 'w') as file_:
+    with open(settings_file, 'r+') as file_:
         config = json.load(file_)
         config['Parameters']['datasize'] = datasize
         json.dump(config, file_, indent=4)
@@ -232,39 +232,39 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
     """
     # Get datapaths
     settings_file = "script_settings.json"
-    with open(settings_file) as file_:
-        config = json.load(file_)
-
-    # Check for parameter request
-    if which_param != None: 
-        output = config['Parameters'][which_param]
-        if which_ids != None:
-            output = output[which_ids]
-
-    #  Check for filepath request
     try:
-        if in_or_out == 'input':
+        with open(settings_file) as file_:
+            config = json.load(file_)
 
-            # Check for real data
-            if which_input == 'npy':
-                output = config['Paths']['npy_path']
-            elif which_input == 'nifti':
-                output = config['Paths']['nifti_path']
+            # Check for parameter request
+            if which_param != None: 
+                output = config['Parameters'][which_param]
+                if which_ids != None:
+                    output = output[which_ids]
 
-            # Check for 
-            elif which_fake == 'range_ids':
-                output = config['Fake Data Paths']['filter_range']
-            elif which_fake == 'real_ids':
-                output = config['Fake Data Paths']['filter_real']
-        
-        elif in_or_out == 'output':
-            output = config['Paths']['data_outputs']
+            # Check for filepath request
+            elif in_or_out == 'input':
 
-        # Double check that directory exists
-        assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
-    
+                # Check for real data
+                if which_input == 'npy':
+                    output = config['Paths']['npy_path']
+                elif which_input == 'nifti':
+                    output = config['Paths']['nifti_path']
+
+                # Check for 
+                elif which_fake == 'range_ids':
+                    output = config['Fake Data Paths']['filter_range']
+                elif which_fake == 'real_ids':
+                    output = config['Fake Data Paths']['filter_real']
+            
+            elif in_or_out == 'output':
+                output = config['Paths']['data_outputs']
+
+            # Double check that directory exists
+            assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
     except:
-        print(f" :(   ...could not retrieve details from settings file {settings_file}...   :(")
+        setting = [i for i in [which_param, which_ids, in_or_out, which_input, which_fake] if i is not None][0]
+        print(f"...Failed to retrieve setting '{setting}' from settings file {settings_file}")
 
     # Return result
     return output
