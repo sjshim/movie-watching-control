@@ -137,24 +137,20 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
     # or user-defined path
 
     # Setup nifti and output paths
-    settings_file = "script_settings.json"
-    with open(settings_file) as file_:
-        config = json.load(file_)
     try:
         if nifti_path is None:
             # nifti_path from script_settings.json is assumed to include have 
             # brackets for str formatting
-            nifti_path = config['Paths']['nifti_path']
+            nifti_path = get_setting('input', 'nifti')
         assert nifti_path != '', "Paths/nifti_path must be defined in script_settings.json"
         if output_path is None:
-            output_path = config['Paths']['npy_path']
+            output_path = get_setting('input', 'npy')
         assert output_path != '', "Paths/npy_path must be defined in script_settings.json"
-        
-        # TODO: add subject ids to script_settings.json and/or script_setup()
+
         # Get files dict
         if files_dict is None:
             try:
-                sub_ids = config['Parameters']['sub_ids']['all']
+                sub_ids = get_setting(which_param='sub_ids')
                 assert (not sub_ids) is False, "['sub ids']['all'] cannot be empty"
                 files_dict = get_files_dict(nifti_path, sub_ids)
             except:
@@ -168,6 +164,7 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
 
     # NOTE: this is ugly and revisions should make get_settings more flexible
     # for either retrieving from or saving settings to script_settings.json
+    settings_file = "script_settings.json"
     with open(settings_file, 'w') as file_:
         config = json.load(file_)
         config['Parameters']['datasize'] = datasize
@@ -237,8 +234,8 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=N
         config = json.load(file_)
 
     # Check for parameter request
-    if which_param == 'datasize':
-        output = config['Parameters']['datasize']
+    if which_param != None: 
+        output = config['Parameters'][which_param]
 
     #  Check for filepath request
     try:
