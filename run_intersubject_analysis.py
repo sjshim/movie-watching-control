@@ -167,7 +167,7 @@ def main():
 
     # Optionally prep data
     if args.prep_data:
-        prep_data(get_setting('input', 'nifti'))
+        prep_data()
 
     # Check intersubject method arguments
     if args.entire:
