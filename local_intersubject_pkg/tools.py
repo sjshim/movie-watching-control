@@ -150,9 +150,10 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
         # Get files dict
         if files_dict is None:
             try:
-                sub_ids = get_setting(which_param='sub_ids')
-                assert (not sub_ids) is False, "['sub ids']['all'] cannot be empty"
+                sub_ids = get_setting(which_param='sub_ids', which_ids='all')
+                assert (not sub_ids) is False, "['Parameters']['sub_ids']['all'] in script_settings.json cannot be empty"
                 files_dict = get_files_dict(nifti_path, sub_ids)
+                assert sub_ids.copy().sort() == list(files_dict.keys()).copy().sort(), "Sub ids and generated filepath dict keys did not match for some reason"
             except:
                 print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
     except Exception:
@@ -224,7 +225,8 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         fake_data = np.random.randint(1000, 5000, size=datasize)
         save_data(output_path.format(sub), fake_data)
 
-def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=None):
+def get_setting(in_or_out=None, which_input=None, which_fake=None, 
+                which_param=None, which_ids=None):
     """
     Get details from the script settings JSON file created for this analysis.
     """
@@ -236,6 +238,8 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=N
     # Check for parameter request
     if which_param != None: 
         output = config['Parameters'][which_param]
+        if which_ids != None:
+            output = output[which_ids]
 
     #  Check for filepath request
     try:
