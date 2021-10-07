@@ -95,8 +95,8 @@ def save_visualization(result, output_path, *method_names):
     # =====
     fig, ax = plt.subplots(figsize=(12, 7))
     sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
-    plt.title(" ".join(method_names) + "heatmap")
-    file_name = "_".join(method_names) + "results_heatmap.png"
+    plt.title(" ".join(method_names) + " heatmap")
+    file_name = "_".join(method_names) + "_results_heatmap.png"
     plt.savefig(os.path.join(output_path, file_name))
 
 def get_analysis_args():
@@ -201,7 +201,8 @@ def main():
     # Perform nonparametric test
     try: 
         if nonparam_method != None:
-            nonparam_results = choose_nonparametric(intersub_results, 
+            # NOTE: currently assumes only ISC is provided, not ISFC
+            nonparam_results = choose_nonparametric(intersub_results.isc, 
                                 nonparam_method, args.iterations, args.alpha)
             print(f"...'{nonparam_method}' nonparametric test performed successfully.")
     except:
@@ -211,7 +212,7 @@ def main():
     if nonparam_method is not None:
         final_results = nonparam_results
     elif intersub_method is not None:
-        final_results = intersub_method
+        final_results = intersub_results
 
     # NOTE: this is currently inflexible to selectively saving results for ISC
     # on its own without permutation test thresholding; I might want to 
