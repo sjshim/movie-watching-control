@@ -93,11 +93,16 @@ def save_visualization(result, output_path, *method_names):
     #   - plotting brain projections
 
     # =====
-    fig, ax = plt.subplots(figsize=(12, 7))
-    sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
-    plt.title(" ".join(method_names) + " heatmap")
-    file_name = "_".join(method_names) + "_results_heatmap.png"
-    plt.savefig(os.path.join(output_path, file_name))
+    try:
+        fig, ax = plt.subplots(figsize=(12, 7))
+        sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
+        plt.title(" ".join(method_names) + " heatmap")
+        file_name = "_".join(method_names) + "_results_heatmap.png"
+        filepath = os.path.join(output_path, file_name)
+        plt.savefig()
+        print(f"...successfully saved visualization at:\n{filepath}\n")
+    except:
+        print(f"...failed to save visualization at:\n{filepath}\n")
 
 def get_analysis_args():
 
@@ -162,12 +167,19 @@ def get_analysis_args():
     return parser.parse_args()
 
 def main():
+    print(f"Running {__file__}...\n")
     # Retrieve command line arguments
     args = get_analysis_args()
 
     # Optionally prep data
     if args.prep_data:
-        prep_data()
+        print("Running prep_data...")
+        try:
+            prep_data()
+            print("...successfully prepped data.\n")
+        except:
+            print("...failed to prep data.\n")
+
 
     # Check intersubject method arguments
     if args.entire:
@@ -184,6 +196,9 @@ def main():
         nonparam_method = 'perm_grouplabel'
     else:
         nonparam_method = None
+    analysis_params = ", ".join([str(i) for i in [intersub_method, nonparam_method, 
+                        args.alpha, args.iterations] if i is not None])
+    print(f"Analysis parameters:\n>   {analysis_params}\n")
 
     # Error if both method arguments are None
     assert intersub_method != nonparam_method, 'Provide at least one method argument'
@@ -224,10 +239,15 @@ def main():
     # - figures
     # NOTE: currently assumes that both interub and nonparam analyses have been performed
     if args.save_data:
-        results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
-        output_path = get_setting('output')
-        filepath = os.path.join(output_path, results_file)
-        save_data(filepath, final_results)
+        try:
+            results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
+            output_path = get_setting('output')
+            filepath = os.path.join(output_path, results_file)
+            save_data(filepath, final_results)
+            print(f"...successfully saved final results at:\n{filepath}\n")
+        except:
+            print(f"...failed to save final results at:\n{filepath}\n")
+
     if args.visualize:
         save_visualization(final_results, output_path, intersub_method, nonparam_method)
 # If script is executed/run, then do the stuff below

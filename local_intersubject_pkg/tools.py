@@ -4,6 +4,7 @@
 import os
 import glob
 import json
+from json.decoder import JSONDecodeError
 
 import numpy as np
 import nibabel as nib
@@ -48,10 +49,10 @@ def save_data(dir_, *args, **kwargs):
 
         # Log success here
         assert os.path.exists(dir_), "Path did not work"
-        print(dir_ + ' successfully created.\n')
+        print(f"> Data file at '{dir_}' successfully saved.\n")
     except:
         # Log failure here
-        print(dir_ + ' failed to create.\n')
+        print(f"> Data file at '{dir_}' failed to save.\n")
 
 # ============================
 # Pre-analysis setup functions
@@ -114,7 +115,8 @@ def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, re
 # NOTE: Should I separate the following into funcitons?
 # get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
 # I feel that this way, I can definitively feed prep_data only settings_file.json info
-def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=None):
+def prep_data(files_dict=None, nifti_path=None, output_path=None, 
+            cutoff_mean=None, out_file="sub-{}_func_small.npz"):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
     .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
@@ -199,7 +201,8 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
         data = data[mask, :]
         
         # save filtered data to numpy.npz file
-        save_data(output_path.format(id_), data=data, mask=mask)
+        save_data(os.path.join(output_path, out_file.format(id_)),
+                data=data, mask=mask)
 
 def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, id_list=None):
     """
@@ -260,11 +263,14 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
             elif in_or_out == 'output':
                 output = config['Paths']['data_outputs']
 
-            # Double check that directory exists
-            assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
-    except:
-        setting = [i for i in [which_param, which_ids, in_or_out, which_input, which_fake] if i is not None][0]
-        print(f"...Failed to retrieve setting '{setting}' from settings file {settings_file}")
+            # NOTE: this has been causing issues, and is incompatible with
+            # the stored nifti glob path; this may be removed in the future
+            # # Double check that directory exists
+            # assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
+    except JSONDecodeError:
+        args = ", ".join([i for i in [which_param, which_ids, in_or_out, \
+                            which_input, which_fake] if i is not None])
+        print(f"...Failed to retrieve setting '{args}' from settings file {settings_file}")
 
     # Return result
     return output

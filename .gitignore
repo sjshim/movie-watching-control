@@ -4,6 +4,7 @@
 **/__pycache__
 
 # Ignore these files
+sherlock_script.sh
 my_script_setup.sh
 EXAMPLE_script_settings.json
 requirements.txt
