@@ -4,6 +4,7 @@
 import os
 import glob
 import json
+from json.decoder import JSONDecodeError
 
 import numpy as np
 import nibabel as nib
@@ -48,10 +49,10 @@ def save_data(dir_, *args, **kwargs):
 
         # Log success here
         assert os.path.exists(dir_), "Path did not work"
-        print(dir_ + ' successfully created.\n')
+        print(f"> Data file at '{dir_}' successfully saved.\n")
     except:
         # Log failure here
-        print(dir_ + ' failed to create.\n')
+        print(f"> Data file at '{dir_}' failed to save.\n")
 
 # ============================
 # Pre-analysis setup functions
@@ -114,7 +115,8 @@ def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, re
 # NOTE: Should I separate the following into funcitons?
 # get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
 # I feel that this way, I can definitively feed prep_data only settings_file.json info
-def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=None):
+def prep_data(files_dict=None, nifti_path=None, output_path=None, 
+            cutoff_mean=None, out_file="sub-{}_func_small.npz"):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
     .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
@@ -150,9 +152,10 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
         # Get files dict
         if files_dict is None:
             try:
-                sub_ids = get_setting(which_param='sub_ids')
-                assert (not sub_ids) is False, "['sub ids']['all'] cannot be empty"
+                sub_ids = get_setting(which_param='sub_ids', which_ids='all')
+                assert (not sub_ids) is False, "['Parameters']['sub_ids']['all'] in script_settings.json cannot be empty"
                 files_dict = get_files_dict(nifti_path, sub_ids)
+                assert sub_ids.copy().sort() == list(files_dict.keys()).copy().sort(), "Sub ids and generated filepath dict keys did not match for some reason"
             except:
                 print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
     except Exception:
@@ -165,7 +168,7 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
     # NOTE: this is ugly and revisions should make get_settings more flexible
     # for either retrieving from or saving settings to script_settings.json
     settings_file = "script_settings.json"
-    with open(settings_file, 'w') as file_:
+    with open(settings_file, 'r+') as file_:
         config = json.load(file_)
         config['Parameters']['datasize'] = datasize
         json.dump(config, file_, indent=4)
@@ -198,7 +201,8 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None, cutoff_mean=No
         data = data[mask, :]
         
         # save filtered data to numpy.npz file
-        save_data(output_path.format(id_), data=data, mask=mask)
+        save_data(os.path.join(output_path, out_file.format(id_)),
+                data=data, mask=mask)
 
 def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, id_list=None):
     """
@@ -224,43 +228,49 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         fake_data = np.random.randint(1000, 5000, size=datasize)
         save_data(output_path.format(sub), fake_data)
 
-def get_setting(in_or_out=None, which_input=None, which_fake=None, which_param=None):
+def get_setting(in_or_out=None, which_input=None, which_fake=None, 
+                which_param=None, which_ids=None):
     """
     Get details from the script settings JSON file created for this analysis.
     """
     # Get datapaths
     settings_file = "script_settings.json"
-    with open(settings_file) as file_:
-        config = json.load(file_)
-
-    # Check for parameter request
-    if which_param != None: 
-        output = config['Parameters'][which_param]
-
-    #  Check for filepath request
     try:
-        if in_or_out == 'input':
+        with open(settings_file) as file_:
+            config = json.load(file_)
 
-            # Check for real data
-            if which_input == 'npy':
-                output = config['Paths']['npy_path']
-            elif which_input == 'nifti':
-                output = config['Paths']['nifti_path']
+            # Check for parameter request
+            if which_param != None: 
+                output = config['Parameters'][which_param]
+                if which_ids != None:
+                    output = output[which_ids]
 
-            # Check for 
-            elif which_fake == 'range_ids':
-                output = config['Fake Data Paths']['filter_range']
-            elif which_fake == 'real_ids':
-                output = config['Fake Data Paths']['filter_real']
-        
-        elif in_or_out == 'output':
-            output = config['Paths']['data_outputs']
+            # Check for filepath request
+            elif in_or_out == 'input':
 
-        # Double check that directory exists
-        assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
-    
-    except:
-        print(f" :(   ...could not retrieve details from settings file {settings_file}...   :(")
+                # Check for real data
+                if which_input == 'npy':
+                    output = config['Paths']['npy_path']
+                elif which_input == 'nifti':
+                    output = config['Paths']['nifti_path']
+
+                # Check for 
+                elif which_fake == 'range_ids':
+                    output = config['Fake Data Paths']['filter_range']
+                elif which_fake == 'real_ids':
+                    output = config['Fake Data Paths']['filter_real']
+            
+            elif in_or_out == 'output':
+                output = config['Paths']['data_outputs']
+
+            # NOTE: this has been causing issues, and is incompatible with
+            # the stored nifti glob path; this may be removed in the future
+            # # Double check that directory exists
+            # assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
+    except JSONDecodeError:
+        args = ", ".join([i for i in [which_param, which_ids, in_or_out, \
+                            which_input, which_fake] if i is not None])
+        print(f"...Failed to retrieve setting '{args}' from settings file {settings_file}")
 
     # Return result
     return output

@@ -45,8 +45,8 @@ def create_script_settings(nifti_path, project_path, data_dest,
             with open(sub_ids_json) as file_:
                 sub_ids_dict = json.load(file_)
                 assert "all" in list(sub_ids_dict.keys()), "'all' key must exist within the provided subject id json file."
-                for label in sub_ids_json.keys():
-                    parameters['sub_ids'][label] = sub_ids_json[label]
+                for label in sub_ids_dict:
+                    parameters['sub_ids'][label] = sub_ids_dict[label]
         except:
             print(f"Failed to retrieve and save subject id lists from the provided file {sub_ids_json}.")
 
@@ -147,11 +147,14 @@ def main():
     # if nifti_path[0] != '/':
     #     nifti_path = '/' + nifti_path
 
-    print(f'Making json settings file...')
+    print(f"Running script_setup.py, creating settings json file...\n")
+    if args.sub_ids_json is not None:
+        print(f"Retrieving subject ids from {args.sub_ids_json}...")
+    print(f'Making json settings file...\n')
     print(f"Nifti path: \n--> '{nifti_path}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{data_dest}'")
-    print("\nPlease confirm that these are the correct directories for your analyses.")
+    print("\nPlease confirm that directories above are correct before proceeding with your analyses!\n")
 
     # Make the settings file!
     create_script_settings(nifti_path, project_path, data_dest, create_dir,
