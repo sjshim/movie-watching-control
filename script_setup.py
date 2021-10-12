@@ -9,8 +9,9 @@ import json
 
 from local_intersubject_pkg.tools import create_directory
 
-def create_script_settings(nifti_path, project_path, data_dest, 
-                            create_dir=False, sub_ids_json=None):
+def create_script_settings(project_path, data_dest, nifti_path=None, 
+                        nifti_func=None, nifti_anat=None, create_dir=False, 
+                        sub_ids_json=None):
     """
     Create a configuration file containing filepaths, parameters, and other
     persistent info that are used by this analysis. The resulting file is
@@ -24,12 +25,14 @@ def create_script_settings(nifti_path, project_path, data_dest,
     paths = {
         "settings_path": settings_file,
         "project_path": project_path, # incase it's not cwd for some reason
+        
+        "nifti_path": nifti_path,
+        "nifti_func": nifti_func,
+        "nifti_anat": nifti_anat,
 
         "data_dest": data_dest,
         "data_inputs": os.path.join(data_dest, "data", "input"),
-        "data_outputs": os.path.join(data_dest, "data", "output"),
-
-        "nifti_path": nifti_path
+        "data_outputs": os.path.join(data_dest, "data", "output")
     }
     # Use os.path.join for OS compatible filepaths
     paths['npy_path'] = os.path.join(paths['data_inputs'], 'npy_data')
@@ -94,7 +97,18 @@ def create_script_settings(nifti_path, project_path, data_dest,
 
 def get_setup_arguments():
     # fancy command line arguments
-    parser = argparse.ArgumentParser(add_help=True)
+    parser = argparse.ArgumentParser(
+        add_help=True,
+        description="""This script stores the relevant filepaths and parameters 
+        used by this analysis to script_settings.json. This allows those
+        details to be human readable and editable (when running this script or
+        even after script_settings.json has been created), and accessible by 
+        other parts of code (both when performed interactively or by script);
+        the result is hopefully more reproducible and transparent analysis 
+        pipeline. Details that are not provided to this script will be empty
+        strings by default in most cases and it is up to the user to manually 
+        provide them to script_setting.json afterward."""
+    )
     parser.add_argument(
         "-s", "--sub_ids_json", default=None,
         help="""Optional. Specify the name of a .json file containing a dict
@@ -104,8 +118,28 @@ def get_setup_arguments():
     )
     parser.add_argument(
         "-n", "--nifti_path", default="",
-        help="""The location of subjects' input Nifti data to use for analysis.
-        This location will not be defined by default."""
+        help="""The root path containing subjects' functional and anatomical
+        Nifti data. If the nifti_path arg is not provided, then it will be 
+        inferred from the full paths from the nifti_func and nifti_anat args; if 
+        both nifti_func and nifti_anat are not provided, then nifti_path must
+        be provided manually within script_settings.json after it has been 
+        created by this script."""
+    )
+    parser.add_argument(
+        "-f", "--nifti_func", default="",
+        help="""The glob path for subjects' functional Nifti files. nifti_func
+        can either be the absolute or relative path to the nifti func files;
+        relative paths requires that the absolute nifti parent path is supplied
+        to either the nifti_path arg or manually provided to
+        script_settings.json"""
+    )
+    parser.add_argument(
+        "-a", "--nifti_anat", default="",
+        help="""The glob path for subject's anatomical Nifti files.nifti_anat
+        can either be the absolute or relative path to the nifti anat files;
+        relative paths requires that the absolute nifti parent path is supplied
+        to either the nifti_path arg or manually provided to 
+        script_settings.json"""
     )
     parser.add_argument(
         "-p", "--project_path", default=None,
@@ -130,10 +164,7 @@ def get_setup_arguments():
 def main():
     # Get arguments from command line
     args = get_setup_arguments()
-
-    nifti_path = args.nifti_path
     project_path = args.project_path
-    create_dir = args.create_dir
 
     if project_path is None:
         project_path = os.getcwd()
@@ -142,7 +173,7 @@ def main():
     else:
         data_dest = args.data_dest
 
-    # TODO: handle os.path incompatible user paths
+    # TODO: handle os.path incompatible user paths or replace with Pathlib.
     # # add starting dash if missing
     # if nifti_path[0] != '/':
     #     nifti_path = '/' + nifti_path
@@ -151,14 +182,17 @@ def main():
     if args.sub_ids_json is not None:
         print(f"Retrieving subject ids from {args.sub_ids_json}...")
     print(f'Making json settings file...\n')
-    print(f"Nifti path: \n--> '{nifti_path}'")
+    print(f"Nifti path: \n--> '{args.nifti_path}'")
+    print(f"Nifti func: \n--> '{args.nifti_func}'")
+    print(f"Nifti anat: \n--> '{args.nifti_anat}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{data_dest}'")
     print("\nPlease confirm that directories above are correct before proceeding with your analyses!\n")
 
     # Make the settings file!
-    create_script_settings(nifti_path, project_path, data_dest, create_dir,
-                            args.sub_ids_json)
+    create_script_settings(project_path, data_dest, args.nifti_path, 
+                        args.nifti_func, args.nifti_anat, args.create_dir, 
+                        args.sub_ids_json)
 
 if __name__ == "__main__":
     main()
