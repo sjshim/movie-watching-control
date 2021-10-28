@@ -81,19 +81,17 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
         print(f"...Could not write '{settings_file}' configuration file") 
 
     # ==========================
-    # Create directories if requested
+    # Create processed data I/O directories if requested (excluding nifti path)
     if create_dir:
-        main_sections.pop("Parameters", None)
         try:
             print(f"\nCreating directories...")
-            for main in main_sections:
-                for sub in main_sections[main]:
-                    if sub not in ['nifti_path', settings_file]:
-                        create_directory(main_sections[main][sub])
+            for path in ['data_inputs', 'data_outputs']:
+                create_directory(paths[path])
+            for path in fake_paths:
+                create_directory(fake_paths[path])
             print(f"...succesfully created directories.\n")
         except:
             print(f"...failed to create directories.\n")
-
 
 def get_setup_arguments():
     # fancy command line arguments
