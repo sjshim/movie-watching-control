@@ -229,16 +229,26 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         save_data(output_path.format(sub), fake_data)
 
 def get_setting(in_or_out=None, which_input=None, which_fake=None, 
-                which_param=None, which_ids=None):
+                which_param=None, which_ids=None, save_datasize=None,
+                settings_file=None):
     """
     Get details from the script settings JSON file created for this analysis.
     """
-    # Get datapaths
-    settings_file = "script_settings.json"
+    # Decide whether to change default name for settings json file
+    if settings_file is None:
+        settings_file = "script_settings.json"
     try:
         with open(settings_file) as file_:
             config = json.load(file_)
 
+        # Update settings json with data
+        if save_datasize is not None:
+            config['Parameters']['datasize'] = save_datasize
+            with open(settings_file, 'wt') as file_:
+                json.dump(config, file_, indent=4)
+
+        # Retrieve data from settings json
+        else:
             # Check for parameter request
             if which_param != None: 
                 output = config['Parameters'][which_param]
@@ -263,14 +273,15 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
             elif in_or_out == 'output':
                 output = config['Paths']['data_outputs']
 
+            # Return result
+            return output
+
             # NOTE: this has been causing issues, and is incompatible with
             # the stored nifti glob path; this may be removed in the future
             # # Double check that directory exists
             # assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
+
     except JSONDecodeError:
         args = ", ".join([i for i in [which_param, which_ids, in_or_out, \
-                            which_input, which_fake] if i is not None])
+                            which_input, which_fake, save_datasize] if i is not None])
         print(f"...Failed to retrieve setting '{args}' from settings file {settings_file}")
-
-    # Return result
-    return output

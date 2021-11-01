@@ -11,7 +11,7 @@ from local_intersubject_pkg.tools import create_directory
 
 def create_script_settings(project_path, data_dest, nifti_path=None, 
                         nifti_func=None, nifti_anat=None, create_dir=False, 
-                        sub_ids_json=None):
+                        sub_ids_json=None, settings_file=None):
     """
     Create a configuration file containing filepaths, parameters, and other
     persistent info that are used by this analysis. The resulting file is
@@ -21,7 +21,6 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     """
     # ========================================================
     # Create dicts of filepaths
-    settings_file = "script_settings.json" # script settings file name
     paths = {
         "settings_path": settings_file,
         "project_path": project_path, # incase it's not cwd for some reason
@@ -156,6 +155,11 @@ def get_setup_arguments():
         is not provided, then directory creation is supressed.""",
         action="store_true"
     )
+    parser.add_argument(
+        "-x", "--settings_fn", default='script_settings.json',
+        help="""Optional; Define a different filename for your script settings
+        json file. Otherwise, the default name is 'script_settings.json'."""
+    )
 
     return parser.parse_args()
 
@@ -188,9 +192,11 @@ def main():
     print("\nPlease confirm that directories above are correct before proceeding with your analyses!\n")
 
     # Make the settings file!
-    create_script_settings(project_path, data_dest, args.nifti_path, 
-                        args.nifti_func, args.nifti_anat, args.create_dir, 
-                        args.sub_ids_json)
+    create_script_settings(project_path=project_path, data_dest=data_dest, 
+                        nifti_path=args.nifti_path, nifti_func=args.nifti_func, 
+                        nifti_anat=args.nifti_anat, create_dir=args.create_dir, 
+                        subs_ids_json=args.sub_ids_json, 
+                        settings_file=args.settings_fn)
 
 if __name__ == "__main__":
     main()
