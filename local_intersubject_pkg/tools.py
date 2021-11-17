@@ -268,16 +268,22 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
     if settings_file is None:
         settings_file = "script_settings.json"
     try:
+        # Open json in read mode and retrieve contents as a dict, then close
         with open(settings_file) as file_:
             config = json.load(file_)
 
-        # Update settings json with data
+        # Update dict contents with new data
         if save_param is not None:
             assert type(save_param) == list or type(save_param) == tuple,\
                 "save_param should be a list or tuple, where index 0 \
                 is the parameter subsection and index 1 is the data to be saved"
             if save_param[0] in list(config['Parameters'].keys()): # NOTE: prevents abritrary key saving; may allow later
-                config['Parameters'][save_param[0]] = save_param[1]
+                param_data = save_param[1]
+                if type(param_data) == np.ndarray: # convert array into a list
+                    param_data = param_data.tolist()
+                config['Parameters'][save_param[0]] = param_data
+            
+            # Open json file in write mode, save new data to file, then close
             with open(settings_file, 'wt') as file_:
                 json.dump(config, file_, indent=4)
 
@@ -286,7 +292,9 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
             # Check for parameter request
             if which_param != None: 
                 output = config['Parameters'][which_param]
-                if which_ids != None:
+                if which_param == 'affine': # retrieve nested list as numpy.ndarray
+                    output = np.array(output)
+                elif which_ids != None: # NOTE: idk why this is placed here; may relocate later
                     output = output[which_ids]
 
             # Check for filepath request
@@ -317,5 +325,5 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
 
     except JSONDecodeError:
         args = ", ".join([i for i in [which_param, which_ids, in_or_out, \
-                            which_input, which_fake, save_datasize] if i is not None])
-        print(f"...Failed to retrieve setting '{args}' from settings file {settings_file}")
+                            which_input, which_fake, save_param] if i is not None])
+        print(f"...Failed to apply setting '{args}' from settings file {settings_file}")
