@@ -201,14 +201,7 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None,
     # Check for datasize and minimum-TR across all subjects' time-series
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
     cutoff_column = datasize[3] # get lowest TR from nifti files
-
-    # NOTE: this is ugly and revisions should make get_settings more flexible
-    # for either retrieving from or saving settings to script_settings.json
-    settings_file = "script_settings.json"
-    with open(settings_file, 'r+') as file_:
-        config = json.load(file_)
-        config['Parameters']['datasize'] = datasize
-        json.dump(config, file_, indent=4)
+    get_setting(save_param=['datasize', datasize])
 
     # Process each subjects' data
     for id_ in files_dict:
@@ -266,7 +259,7 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         save_data(output_path.format(sub), fake_data)
 
 def get_setting(in_or_out=None, which_input=None, which_fake=None, 
-                which_param=None, which_ids=None, save_datasize=None,
+                which_param=None, which_ids=None, save_param=None,
                 settings_file=None):
     """
     Get details from the script settings JSON file created for this analysis.
@@ -279,8 +272,12 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
             config = json.load(file_)
 
         # Update settings json with data
-        if save_datasize is not None:
-            config['Parameters']['datasize'] = save_datasize
+        if save_param is not None:
+            assert type(save_param) == list or type(save_param) == tuple,\
+                "save_param should be a list or tuple, where index 0 \
+                is the parameter subsection and index 1 is the data to be saved"
+            if save_param[0] in list(config['Parameters'].keys()): # NOTE: prevents abritrary key saving; may allow later
+                config['Parameters'][save_param[0]] = save_param[1]
             with open(settings_file, 'wt') as file_:
                 json.dump(config, file_, indent=4)
 
