@@ -33,26 +33,63 @@ def create_directory(dir_):
         print(f'> Path: {dir_}\n...already exists.\n')
 
 
-def save_data(dir_, *args, **kwargs):
+def save_data(filename, *args, **kwargs):
     """
+    Saves a .nii.gz file using nibabel.save(), .npy file with numpy.save(),
+    or .npz file with numpy.savez() based on the extension of the provided
+    output filename.
+    
     Uses numpy's save(), savez() or savez_compressed(), 
     but double-checks if directory exists too
+
+    Parameters
+    ----------
+    filename : str
+        The name of the file that output will be saved to. Valid file extensions
+        are files that end with '.nii.gz', '.npy', or '.npz'. If this file
+        already exists, then using this function will overwrite the existing
+        contents of that file.
+
+    data : array, optional 
+        The data or computed analysis results that should be saved. If used for
+        a .nii.gz file, then data (along with affine and datasize) can be
+        provided 
+    
+    affine : array, optional
+        The affine coordinates 
+
+
     """
     # assert os.path.exists(dir_), f"Path {dir_} does not exists."
 
-    try:
-        if dir_.endswith('.npy'):
-            np.save(dir_, *args)
+    # TODO: currently this function does not deal with overwriting, should
+    # I fix this?
+    # if os.path.exists(dir_) and kwargs['overwrite'] == False:
+        # raise yadayada
 
-        elif dir_.endswith('.npz'):
-            np.savez(dir_, **kwargs)
+    try:
+        if filename.endswith('.nii.gz'):
+            if 'img_obj' in kwargs:
+                img_obj = kwargs['img_obj']
+            elif 'data' and 'affine' and 'datasize' in kwargs:
+                ds = kwargs['datasize']
+                img_obj = nib.Nifti1Image(
+                    kwargs['data'].reshape(ds[0], ds[1], ds[2]),
+                    kwargs['affine'])
+            nib.save(img_obj, filename)
+
+        elif filename.endswith('.npy'):
+            np.save(filename, *args)
+
+        elif filename.endswith('.npz'):
+            np.savez(filename, **kwargs)
 
         # Log success here
-        assert os.path.exists(dir_), "Path did not work"
-        print(f"> Data file at '{dir_}' successfully saved.\n")
+        assert os.path.exists(filename), "Path did not work" # (11/11/21) Unsure what this assertion was supposed to achieve; may remove later
+        print(f"> Data file at '{filename}' successfully saved.\n")
     except:
         # Log failure here
-        print(f"> Data file at '{dir_}' failed to save.\n")
+        print(f"> Data file at '{filename}' failed to save.\n")
 
 # ============================
 # Pre-analysis setup functions
