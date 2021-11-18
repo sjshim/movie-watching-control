@@ -21,6 +21,7 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from nilearn import plotting
 
 from local_intersubject_pkg.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
@@ -82,8 +83,6 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None,
     return nonparam
 
 def save_visualization(result, output_path, *method_names):
-
-    # NOTE: currently, should very simply produce a heatmap for ISC. 
     # TODO: in the future, this script should also
     #   - save figures for ISFC
     #   - be useable for all potential figures that this analysis will need;
@@ -94,12 +93,20 @@ def save_visualization(result, output_path, *method_names):
 
     # =====
     try:
-        fig, ax = plt.subplots(figsize=(12, 7))
-        sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
-        plt.title(" ".join(method_names) + " heatmap")
-        file_name = "_".join(method_names) + "_results_heatmap.png"
+        # fig, ax = plt.subplots(figsize=(12, 7))
+        # sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
+        # plt.title(" ".join(method_names) + " heatmap")
+        file_name = "_".join(method_names) + "_results_brain_plot"
         filepath = os.path.join(output_path, file_name)
-        plt.savefig()
+        # plt.savefig()
+        title = " ".join(method_names) + " brain plot"
+
+        # Save brain plot as static png file
+        plotting.plot_stat_map(result, threshold=None, title=title, 
+                output_file=filepath + '.png')
+        # Save brain plot as interactive html
+        plotting.view_img(result, threshold=None,  title=title,
+                output_file=filepath + '.html')
         print(f"...successfully saved visualization at:\n{filepath}\n")
     except:
         print(f"...failed to save visualization at:\n{filepath}\n")

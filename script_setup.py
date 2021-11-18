@@ -196,7 +196,7 @@ def main():
     create_script_settings(project_path=project_path, data_dest=data_dest, 
                         nifti_path=args.nifti_path, nifti_func=args.nifti_func, 
                         nifti_anat=args.nifti_anat, create_dir=args.create_dir, 
-                        subs_ids_json=args.sub_ids_json, 
+                        sub_ids_json=args.sub_ids_json, 
                         settings_file=args.settings_fn)
 
 if __name__ == "__main__":
