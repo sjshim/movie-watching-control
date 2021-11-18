@@ -152,7 +152,7 @@ def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, re
 # NOTE: Should I separate the following into funcitons?
 # get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
 # I feel that this way, I can definitively feed prep_data only settings_file.json info
-def prep_data(files_dict=None, nifti_path=None, output_path=None, 
+def prep_data(files_dict=None, nifti_func=None, output_path=None, 
             cutoff_mean=None, out_file="sub-{}_func_small.npz"):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
@@ -177,26 +177,26 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None,
 
     # Setup nifti and output paths
     try:
-        if nifti_path is None:
-            # nifti_path from script_settings.json is assumed to include have 
+        if nifti_func is None:
+            # nifti_func from script_settings.json is assumed to include have 
             # brackets for str formatting
-            nifti_path = get_setting('input', 'nifti')
-        assert nifti_path != '', "Paths/nifti_path must be defined in script_settings.json"
+            nifti_func = get_setting('nifti_func')
+        assert nifti_func != '', "Paths/nifti_func must be defined in script_settings.json"
         if output_path is None:
-            output_path = get_setting('input', 'npy')
+            output_path = get_setting('npy_path')
         assert output_path != '', "Paths/npy_path must be defined in script_settings.json"
 
         # Get files dict
         if files_dict is None:
             try:
-                sub_ids = get_setting(which_param='sub_ids', which_ids='all')
+                sub_ids = get_setting(get_ids='all')
                 assert (not sub_ids) is False, "['Parameters']['sub_ids']['all'] in script_settings.json cannot be empty"
-                files_dict = get_files_dict(nifti_path, sub_ids)
+                files_dict = get_files_dict(nifti_func, sub_ids)
                 assert sub_ids.copy().sort() == list(files_dict.keys()).copy().sort(), "Sub ids and generated filepath dict keys did not match for some reason"
             except:
-                print(f"Couldn't obtain files dict from path:\n{nifti_path}\n...for subject ids:\n{sub_ids}")
+                print(f"Couldn't obtain files dict from path:\n{nifti_func}\n...for subject ids:\n{sub_ids}")
     except Exception:
-        print("Couldn't retrieve nifti_path or npy_path from script_settings.json")
+        print("Couldn't retrieve nifti_func or npy_path from script_settings.json")
 
     # Check for datasize and minimum-TR across all subjects' time-series
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
@@ -260,9 +260,8 @@ def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, i
         fake_data = np.random.randint(1000, 5000, size=datasize)
         save_data(output_path.format(sub), fake_data)
 
-def get_setting(in_or_out=None, which_input=None, which_fake=None, 
-                which_param=None, which_ids=None, save_param=None,
-                settings_file=None):
+def get_setting(get_path=None, get_param=None, get_ids=None, 
+                save_param=None, get_fake=None, settings_file=None):
     """
     Get details from the script settings JSON file created for this analysis.
     """
@@ -292,30 +291,21 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
         # Retrieve data from settings json
         else:
             # Check for parameter request
-            if which_param != None: 
-                output = config['Parameters'][which_param]
-                if which_param == 'affine': # retrieve nested list as numpy.ndarray
+            if get_param != None: 
+                output = config['Parameters'][get_param]
+                if get_param == 'affine': # retrieve nested list as numpy.ndarray
                     output = np.array(output)
-                elif which_ids != None: # NOTE: idk why this is placed here; may relocate later
-                    output = output[which_ids]
-
+            # If get_ids are defined, return a specific group's ids; otherwise
+            # return entire sub_ids dict if specified in get_param
+                elif get_ids != None:
+                    output = output[get_ids]
+            elif get_ids != None:
+                output = config['Parameters']['sub_ids'][get_ids]
             # Check for filepath request
-            elif in_or_out == 'input':
-
-                # Check for real data
-                if which_input == 'npy':
-                    output = config['Paths']['npy_path']
-                elif which_input == 'nifti':
-                    output = config['Paths']['nifti_path']
-
-                # Check for 
-                elif which_fake == 'range_ids':
-                    output = config['Fake Data Paths']['filter_range']
-                elif which_fake == 'real_ids':
-                    output = config['Fake Data Paths']['filter_real']
-            
-            elif in_or_out == 'output':
-                output = config['Paths']['data_outputs']
+            elif get_path != None:
+                output = config['Paths'][get_path]
+            elif get_fake != None:
+                output = config['Fake Data Paths'][get_fake]
 
             # Return result
             return output
@@ -326,6 +316,6 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
             # assert os.path.exists(output), f"The path...\n{output}\n...could not be found or does not exist."
 
     except JSONDecodeError:
-        args = ", ".join([i for i in [which_param, which_ids, in_or_out, \
-                            which_input, which_fake, save_param] if i is not None])
+        args = ", ".join([i for i in [get_path, get_param, get_ids, \
+                            get_fake, save_param] if i is not None])
         print(f"...Failed to apply setting '{args}' from settings file {settings_file}")

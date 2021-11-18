@@ -30,11 +30,11 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
         "nifti_anat": nifti_anat,
 
         "data_dest": data_dest,
-        "data_inputs": os.path.join(data_dest, "data", "input"),
-        "data_outputs": os.path.join(data_dest, "data", "output")
+        "data_input": os.path.join(data_dest, "data", "input"),
+        "data_output": os.path.join(data_dest, "data", "output")
     }
     # Use os.path.join for OS compatible filepaths
-    paths['npy_path'] = os.path.join(paths['data_inputs'], 'npy_data')
+    paths['npy_path'] = os.path.join(paths['data_input'], 'npy_data')
 
     # Setup parameters needed between scripts
     parameters = {
@@ -62,7 +62,7 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     }
 
     for i in fake_paths:
-        fake_paths[i] = os.path.join(paths['data_inputs'], *fake_paths[i])
+        fake_paths[i] = os.path.join(paths['data_input'], *fake_paths[i])
 
     # =========================
     # Save all script settings as a .json file
@@ -85,7 +85,7 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     if create_dir:
         try:
             print(f"\nCreating directories...")
-            for path in ['data_inputs', 'data_outputs']:
+            for path in ['data_input', 'data_output']:
                 create_directory(paths[path])
             for path in fake_paths:
                 create_directory(fake_paths[path])

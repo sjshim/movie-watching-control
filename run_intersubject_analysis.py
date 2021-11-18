@@ -31,18 +31,17 @@ from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 from subjects import subjects, subs_binge, subs_smoke
 
 
-def choose_intersubject(method, out_type=None, use_fake_data=False, 
-                        which_fake='range_ids'):
-    # do intersubject analysis
+def choose_intersubject(method, out_type=None, use_fake_data=None):
+    # Choose intersubject correlation method to compute
 
     # Get data path
     # NOTE: Currently assumes that simulated data should be used
     # and ignoring use_fake_data positional argument
-    if use_fake_data:
-        data_path = get_setting('input',  which_fake=which_fake)
+    if use_fake_data != None:
+        data_path = get_setting(get_fake=use_fake_data)
     else:
-        data_path = get_setting('input', which_input='npy')
-    datasize = get_setting(which_param='datasize')
+        data_path = get_setting(get_path='npy')
+    datasize = get_setting(get_param='datasize')
 
     # Create Intersubject object
     intersubject = Intersubject(data_path, datasize)
@@ -61,7 +60,7 @@ def choose_intersubject(method, out_type=None, use_fake_data=False,
     else:
         return intersubject
 
-def choose_nonparametric(data, method, iterations, sig_level, data_avg=None, 
+def choose_nonparametric(method, iterations, sig_level, data=None, 
                         stored_data=None):
     # do nonparametric tests
 
@@ -71,13 +70,12 @@ def choose_nonparametric(data, method, iterations, sig_level, data_avg=None,
 
     if method == 'perm_signflip':
         nonparam = perm_signflip(data, iterations, sig_level=sig_level)
-    
-    # TODO: finish this this morning
     elif method == 'perm_grouplabel':
-        data_path = get_setting('input', 'range_ids')
+        data_path = get_setting(get_path='npy_path') # Uses preprocessed npy data for recalculating ISC
+        # Get info from Intersubject object attributes
         sub_ids = data.subject_ids
         datasize = data.datasize
-        nonparam = perm_grouplabel(data_avg, data_path, sub_ids, datasize,
+        nonparam = perm_grouplabel(data, data_path, sub_ids, datasize,
                 iterations, sig_level=sig_level)
 
     return nonparam
@@ -224,8 +222,8 @@ def main():
     try: 
         if nonparam_method != None:
             # NOTE: currently assumes only ISC is provided, not ISFC
-            nonparam_results = choose_nonparametric(intersub_results.isc, 
-                                nonparam_method, args.iterations, args.alpha)
+            nonparam_results = choose_nonparametric(nonparam_method, 
+                    args.iterations, args.alpha, data=intersub_results.isc)
             print(f"...'{nonparam_method}' nonparametric test performed successfully.")
     except:
         print(f"...'{nonparam_method}' nonparametric test failed to complete.")
@@ -245,14 +243,14 @@ def main():
     # - arrays
     # - figures
     # NOTE: currently assumes that both interub and nonparam analyses have been performed
-    output_path = get_setting('output')
+    output_path = get_setting(get_path='data_output')
     if args.save_data:
         try:
             results_file = os.path.join(output_path, 
                     f"{intersub_method}_isc_{nonparam_method}_results.nii.gz")
             save_data(results_file, data=final_results,
-                    affine=get_setting(which_param='affine'),
-                    datasize=get_setting(which_param='datasize'))
+                    affine=get_setting(get_param='affine'),
+                    datasize=get_setting(get_param='datasize'))
             print(f"...successfully saved final results at:\n{results_file}\n")
         except:
             print(f"...failed to save final results at:\n{results_file}\n")
