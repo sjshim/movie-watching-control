@@ -85,7 +85,7 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     if create_dir:
         try:
             print(f"\nCreating directories...")
-            for path in ['data_input', 'data_output']:
+            for path in ['data_input', 'data_output', 'npy_path']:
                 create_directory(paths[path])
             for path in fake_paths:
                 create_directory(fake_paths[path])
