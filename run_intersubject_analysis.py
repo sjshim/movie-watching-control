@@ -238,15 +238,17 @@ def main():
     # - arrays
     # - figures
     # NOTE: currently assumes that both interub and nonparam analyses have been performed
+    output_path = get_setting('output')
     if args.save_data:
         try:
-            results_file = f"{intersub_method}_isc_{nonparam_method}_results.npy" 
-            output_path = get_setting('output')
-            filepath = os.path.join(output_path, results_file)
-            save_data(filepath, final_results)
-            print(f"...successfully saved final results at:\n{filepath}\n")
+            results_file = os.path.join(output_path, 
+                    f"{intersub_method}_isc_{nonparam_method}_results.nii.gz")
+            save_data(results_file, data=final_results,
+                    affine=get_setting(which_param='affine'),
+                    datasize=get_setting(which_param='datasize'))
+            print(f"...successfully saved final results at:\n{results_file}\n")
         except:
-            print(f"...failed to save final results at:\n{filepath}\n")
+            print(f"...failed to save final results at:\n{results_file}\n")
 
     if args.visualize:
         save_visualization(final_results, output_path, intersub_method, nonparam_method)

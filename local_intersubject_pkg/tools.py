@@ -202,6 +202,8 @@ def prep_data(files_dict=None, nifti_path=None, output_path=None,
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
     cutoff_column = datasize[3] # get lowest TR from nifti files
     get_setting(save_param=['datasize', datasize])
+    get_setting( # save affine using first subject's nifti functional file
+        save_param=['affine', nib.load(list(files_dict.values())[0]).affine])
 
     # Process each subjects' data
     for id_ in files_dict:
@@ -272,7 +274,7 @@ def get_setting(in_or_out=None, which_input=None, which_fake=None,
         with open(settings_file) as file_:
             config = json.load(file_)
 
-        # Update dict contents with new data
+        # Update dict contents with new parameter data
         if save_param is not None:
             assert type(save_param) == list or type(save_param) == tuple,\
                 "save_param should be a list or tuple, where index 0 \

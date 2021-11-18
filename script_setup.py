@@ -39,6 +39,7 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     # Setup parameters needed between scripts
     parameters = {
         "datasize" : (),
+        "affine": (),
         "sub_ids": {"all":[]} # default dict if a subject id json isn't provided
     }
     # Retrieve subject id lists from a separate .json file if provided
