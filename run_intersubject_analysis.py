@@ -28,7 +28,7 @@ from local_intersubject_pkg.intersubject import Intersubject
 from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 
 # Hardcoded subject ids (oops)
-from subjects import subjects, subs_binge, subs_smoke
+# from subjects import subjects, subs_binge, subs_smoke
 
 
 def choose_intersubject(method, out_type=None, use_fake_data=None):
@@ -47,10 +47,11 @@ def choose_intersubject(method, out_type=None, use_fake_data=None):
     intersubject = Intersubject(data_path, datasize)
     
     if method == 'entire':
-        intersubject.group_isfc(subjects)
+        intersubject.group_isfc(get_setting(get_ids='all'))
     elif method == 'within_between':
-        intersubject.group_isfc({'binge': subs_binge, 'smoke': subs_smoke},
-                                compare_method='within_between')
+        subs_dict = get_setting(get_param='sub_ids')
+        subs_dict.pop('all') # remove 'all' key, assumes two group keys remain
+        intersubject.group_isfc(subs_dict, compare_method='within_between')
 
     # Decide whether to only return subset of data
     if out_type == 'isc':

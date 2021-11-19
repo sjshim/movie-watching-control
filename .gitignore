@@ -7,6 +7,7 @@
 # Ignore these files
 subjects.py
 run_fake_prep.py
+*.sh
 sherlock_script.sh
 my_script_setup.sh
 EXAMPLE_script_settings.json
