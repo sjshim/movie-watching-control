@@ -1,10 +1,12 @@
 # Ignore these directories
 /tests
 /scratch
+/sherlock_transfers
 **/data
 **/__pycache__
 
 # Ignore these files
+test_script.py
 subjects.py
 run_fake_prep.py
 *.sh
