@@ -153,7 +153,7 @@ def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, re
 # get_files_dict, nifti_to_npy, get_datasizes, all under parent func prep_data?
 # I feel that this way, I can definitively feed prep_data only settings_file.json info
 def prep_data(files_dict=None, nifti_func=None, output_path=None, 
-            cutoff_mean=None, out_file="sub-{}_func_small.npz"):
+            cutoff_mean=None, out_file="sub-{}_func_small"):
     """
     Reshapes 4d fmri data into a 2d numpy array and saves the output as a
     .npy file. Input data can be either Nifti format (.nii or .nii.gz) or 
@@ -201,9 +201,9 @@ def prep_data(files_dict=None, nifti_func=None, output_path=None,
     # Check for datasize and minimum-TR across all subjects' time-series
     datasize = check_datasizes(files_dict, return_4d_tuple=True)
     cutoff_column = datasize[3] # get lowest TR from nifti files
+    affine = nib.load(list(files_dict.values())[0]).affine # get affine from arbitrary func nifti
     get_setting(save_param=['datasize', datasize])
-    get_setting( # save affine using first subject's nifti functional file
-        save_param=['affine', nib.load(list(files_dict.values())[0]).affine])
+    get_setting(save_param=['affine', affine]) 
 
     # Process each subjects' data
     for id_ in files_dict:
@@ -212,7 +212,7 @@ def prep_data(files_dict=None, nifti_func=None, output_path=None,
         try:
             if id_path.endswith(".npy"):
                 data = np.load(id_path) # .npy files are assumed to have same dimensions
-            elif id_path.endswith(".gz"):
+            elif id_path.endswith(".nii.gz"):
                 data = nib.load(id_path).get_fdata()[:,:,:, 0: cutoff_column]
         except:
             print("Unrecognized file type.")
@@ -225,16 +225,21 @@ def prep_data(files_dict=None, nifti_func=None, output_path=None,
                             datasize[3]).astype(np.float32)
         
         # create boolean mask based on each voxel's mean (optional)
-        if cutoff_mean is None:
-            cutoff_mean = np.min(data, axis=1)
-        mask = np.mean(data, axis=1) > cutoff_mean
-        
-        # filter voxels using mask
-        data = data[mask, :]
-        
+        if cutoff_mean:
+            # cutoff_mean = np.min(data, axis=1)
+            mask = np.mean(data, axis=1) > cutoff_mean
+            data = data[mask, :] # filter and reduce voxels using mask
+
+        # Save prepped data
+        out_file = os.path.join(output_path, out_file.format(id_))
+        restored_data = np.full((datasize[0]*datasize[1]*datasize[2], datasize[3]), np.nan)
+        restored_data[mask, :] = data
+        if out_file.endswith(".nii.gz"):
+            save_data(out_file, data=restored_data,
+                    affine=affine, datasize=datasize)
         # save filtered data to numpy.npz file
-        save_data(os.path.join(output_path, out_file.format(id_)),
-                data=data, mask=mask)
+        elif out_file.endswith(".npz"):
+            save_data(out_file, data=data, mask=mask)
 
 def create_fake_data(output_path, datasize=(4, 4, 4, 10), no_of_subjects=None, id_list=None):
     """
