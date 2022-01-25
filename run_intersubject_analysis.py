@@ -17,6 +17,7 @@
 import os
 import sys
 import argparse
+from nibabel import Nifti1Image
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,7 +32,7 @@ from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 # from subjects import subjects, subs_binge, subs_smoke
 
 
-def choose_intersubject(method, out_type=None, use_fake_data=None):
+def choose_intersubject(method, use_fake_data=None):
     # Choose intersubject correlation method to compute
 
     # Get data path
@@ -40,26 +41,19 @@ def choose_intersubject(method, out_type=None, use_fake_data=None):
     if use_fake_data != None:
         data_path = get_setting(get_fake=use_fake_data)
     else:
-        data_path = get_setting(get_path='npy')
+        data_path = get_setting(get_path='npy_path')
     datasize = get_setting(get_param='datasize')
 
-    # Create Intersubject object
-    intersubject = Intersubject(data_path, datasize)
-    
     if method == 'entire':
-        intersubject.group_isfc(get_setting(get_ids='all'))
+        subs = get_setting(get_ids='all')
     elif method == 'within_between':
-        subs_dict = get_setting(get_param='sub_ids')
-        subs_dict.pop('all') # remove 'all' key, assumes two group keys remain
-        intersubject.group_isfc(subs_dict, compare_method='within_between')
+        subs = get_setting(get_param='sub_ids')
+        subs.pop('all', None) # remove 'all' key, assumes two group keys remain
 
-    # Decide whether to only return subset of data
-    if out_type == 'isc':
-        return intersubject.isc
-    elif out_type == 'isfc':
-        return intersubject.isfc
-    else:
-        return intersubject
+    # Calculate ISC with specified group comparison method
+    intersubject = Intersubject('isc', method, os.path.join(data_path, 'sub-{}_func_small.npz'), datasize)
+    intersubject.compute(subs)
+    return intersubject.result
 
 def choose_nonparametric(method, iterations, sig_level, data=None, 
                         stored_data=None):
@@ -95,16 +89,21 @@ def save_visualization(result, output_path, *method_names):
         # fig, ax = plt.subplots(figsize=(12, 7))
         # sns.heatmap(result, center=0, vmin=-1, vmax=1, ax=ax)
         # plt.title(" ".join(method_names) + " heatmap")
+        ds = get_setting(get_param='datasize')
+        affine = get_setting(get_param='affine')
+        result_niimg = Nifti1Image(
+            result.reshape(ds[0], ds[1], ds[2]),
+            affine)
         file_name = "_".join(method_names) + "_results_brain_plot"
         filepath = os.path.join(output_path, file_name)
         # plt.savefig()
         title = " ".join(method_names) + " brain plot"
 
         # Save brain plot as static png file
-        plotting.plot_stat_map(result, threshold=None, title=title, 
+        plotting.plot_stat_map(result_niimg, threshold=None, title=title, 
                 output_file=filepath + '.png')
         # Save brain plot as interactive html
-        plotting.view_img(result, threshold=None,  title=title,
+        plotting.view_img(result_niimg, threshold=None,  title=title,
                 output_file=filepath + '.html')
         print(f"...successfully saved visualization at:\n{filepath}\n")
     except:

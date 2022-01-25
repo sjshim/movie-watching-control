@@ -27,36 +27,40 @@ class Intersubject:
     """
 
 
-    def __init__(self, data_path, datasize):
+    def __init__(self, compute_method='isc', group_method=None, data_path=None, 
+                datasize=None, reduced_results=False):
+        self.compute_method = compute_method
+        self.group_method = group_method
         self.data_path = data_path
         self.datasize = datasize
         self.dims = (datasize[0] * datasize[1] * datasize[2], datasize[3]) # for quick matrix size
         self.subject_ids = {} # can accomodate either one or multiple ID groups
         self.group_mask = None
+        self.results = {}
         self.isfc = {}
         self.isc = {}
         self._data_sum = {}
         self._voxel_sum = {}
+        self.reduced_results = reduced_results
 
-    def _get_sum(self, label):
+    def _get_sum(self, label, mask_cutoff=0.7):
         # Calculate's a group's summed data in preparation for computing the 
         # average (for one-to-average/leave-one-out ISC method)
-        
+        print(f"\nStarting _get_sum()...")
         # Make empty summed data output arrays
         sum_data = np.zeros(shape=(self.dims))
         sum_vox = np.zeros(shape=(self.dims[0]))
         _group_mask = np.zeros(shape=(self.dims[0]))
 
         # Save each subject's data and voxel mask
-        sub_list = self.subject_ids[label]
-        for sub in sub_list:
+        for idx, sub in enumerate(self.subject_ids[label]):
             # Load subject data from npz dict object
             subject_dict = np.load(self.data_path.format(sub))
             mask = subject_dict['mask']
 
             # Get subject's masked data
             data = np.zeros(shape=(len(mask), self.dims[1])) # matrix of zeros
-            data[mask, :] = subject_dict['data'] 
+            data[mask, :] = subject_dict['data']
 
             # Add subject data to the sample-wide sum array
             sum_data = sum_data + data
@@ -67,8 +71,9 @@ class Intersubject:
 
         # Create boolean mask of sample-wide surviving voxels
         # NOTE: 0.7 is magic number carry-over from YC
-        _group_mask = sum_vox.copy() > (0.7 * len(sub_list)) # True if 70% participants voxels survive; magic number from YC's!
-        
+        # NOTE: redundant and should be refactored into a single assignment to self.group_mask
+        _group_mask = sum_vox.copy() > (mask_cutoff * len(self.subject_ids[label])) # True if 70% participants voxels survive; magic number from YC's!
+
         # Find set union between group masks if already defined
         if self.group_mask is not None:
             self.group_mask = np.logical_or(self.group_mask, _group_mask)
@@ -79,34 +84,32 @@ class Intersubject:
         self._data_sum[label] = sum_data[_group_mask, :]
         self._voxel_sum[label] = sum_vox[_group_mask]
 
-
-    def _isfc_oneavg(self, sub_id, label, compare_method = 'entire', minus_one = True):
+    def _one_to_avg(self, sub_id, label, minus_one=True):
         # Calculates one subject's ISFC and ISC
 
         # Recursively calculate subject's isfc for within and between group method
-        if compare_method == 'within_between':
+        if self.group_method == 'within_between':
 
             # Save dicts of within and between data separately from arguments
             label_list = list(self.subject_ids)
             
             # treat provided label as "within group" label
-            within_isfc = self._isfc_oneavg(sub_id, label)
+            within_isfc = self._one_to_avg(sub_id, label)
 
             # use remaining label as "between group"
             label_list.remove(label)
             label = label_list[0]
 
-            between_isfc = self._isfc_oneavg(sub_id, label, minus_one=False)
+            between_isfc = self._one_to_avg(sub_id, label, minus_one=False)
             
             return within_isfc, between_isfc
         
-        elif compare_method == 'entire':
+        elif self.group_method == 'entire':
             # Retrieve subject data with their mask
             subject_dict = np.load(self.data_path.format(sub_id))
             mask = subject_dict['mask']
             data = np.full(shape=(mask.shape[0], self.dims[1]), fill_value=np.nan)
             data[mask, :] = subject_dict['data']
-
             # Mask the subject's data and voxel mask with sample-wide voxel mask (potentially more restrictive)
             data = data[self.group_mask, :]
             mask = mask[self.group_mask]
@@ -124,11 +127,13 @@ class Intersubject:
                 temp_avg = numer / denom.reshape((denom.shape[0], 1))
 
             # Compute ISFC correlation between subject and average-minus-one
-            isfc_matrix = compute_r(data, temp_avg)
-            
-            return isfc_matrix
+            if self.compute_method == "isc":
+                result = compute_r(data, temp_avg, compare_index='same')
+            elif self.compute_method == 'isfc':
+                result = compute_r(data, temp_avg, compare_index='pairwise')
+            return result
 
-    def group_isfc(self, group_ids, compare_method = "entire", keep_isfc=True, keep_isc=True):
+    def compute(self, group_ids, keep_isfc=True, keep_isc=True):
         """
         Calculate isfc and isc for a group of subjects.
 
@@ -176,47 +181,66 @@ class Intersubject:
 
         label_list = list(self.subject_ids)
 
-        def get_container(this_label=None, last_dim=None):
+        def get_container(which_dim, this_label=None, last_dim=None):
             # Function to generate an "empty" array to be filled afterward.
             # Note: currently only works for the Intersubject class.
+            assert which_dim in ['group_mask', 'original']
             if this_label is not None:
                 last_dim = len(self.subject_ids[this_label])
 
-            isfc_container = np.full((self.dims[0], self.dims[0], last_dim), np.nan)
-            isc_container = np.full((self.dims[0], last_dim), np.nan)
-            return isfc_container, isc_container
+            if which_dim == 'original':
+                first_dim = self.dims[0]
+            elif which_dim == 'group_mask':
+                first_dim = self.group_mask.sum(where=True)
+
+            if self.compute_method == 'isc':
+                container_dims = (first_dim, last_dim)
+            elif self.compute_method == 'isfc':
+                container_dims = (first_dim, first_dim, last_dim)
+            return np.full(container_dims, fill_value=np.nan)
 
         # Whole-sample ISFC/ISC
-        if compare_method == "entire":
+        if self.group_method == "entire":
             # treat first group as the primary label
             label = label_list[0]
 
             # get containers and summed data
-            self.isfc['entire'], self.isc['entire'] = get_container(label)
-            self._get_sum(label)
+            # self.isfc['entire'], self.isc['entire'] = get_container(label)
+            if self.reduced_results:
+                self.results['entire'] = get_container('group_mask', label)
+            else:
+                self.results['entire'] = get_container('original', label)
+            self._get_sum(label, mask_cutoff=0.0)
 
             # Get isfc/isc
             for i, sub in enumerate(self.subject_ids[label]):
-                this_isfc = self._isfc_oneavg(sub, label, compare_method=compare_method)
-                assert this_isfc.shape == self.isfc['entire'][:,:,0].shape, f"subject isfc {this_isfc.shape} and isfc container {self.isfc['entire'][:,:,0].shape} are mismatched"
-                                    
+                this_result = self._one_to_avg(sub, label)
+                if self.reduced_results:
+                    # NOTE: this might not work for ISFC bc of masking index
+                    self.results['entire'][..., i] = this_result
+                else:
+                    self.results['entire'][..., i][self.group_mask] = this_result
+
+                # assert this_result.shape == self.results['entire'][..., 0].shape, f"subject isfc {this_result.shape} and isfc container {self.results['entire'][... ,0].shape} are mismatched"
+
                 # if keep_isfc:
-                self.isfc['entire'][:, :, i] = this_isfc
+                # self.isfc['entire'][:, :, i] = this_isfc
                 # self._isfc = subject_isfc
 
                 # if keep_isc
-                self.isc['entire'][:, i] = this_isfc.diagonal() 
+                # self.isc['entire'][:, i] = this_isfc.diagonal() 
                 # self._isc = subject_isfc.diagonal()
 
         # Within-between ISFC/ISC
-        elif compare_method == "within_between":
+        # NOTE: currently not compatible with self.reduced_results
+        elif self.group_method == "within_between":
 
             label_left, label_right = label_list[0], label_list[1]
             all_ids = self.subject_ids[label_left] + self.subject_ids[label_right]
 
             # Save array containers to attribute's dict
-            self.isfc['within'], self.isc['within'] = get_container(last_dim = len(all_ids))
-            self.isfc['between'], self.isc['between'] = get_container(last_dim = len(all_ids))
+            self.results['within'] = get_container(last_dim = len(all_ids))
+            self.results['between'] = get_container(last_dim = len(all_ids))
 
             # Get sums for both subject groups
             self._get_sum(label_left)
@@ -226,12 +250,17 @@ class Intersubject:
             for i, sub in enumerate(all_ids):
                 # Treat label as 'within' if it matches the group
                 if sub in self.subject_ids[label_left]:
-                    wb_isfc = self._isfc_oneavg(sub, label_left, compare_method=compare_method)
+                    wb_result = self._one_to_avg(sub, label_left)
 
                 elif sub in self.subject_ids[label_right]:
-                    wb_isfc = self._isfc_oneavg(sub, label_right, compare_method=compare_method)
+                    wb_result = self._one_to_avg(sub, label_right)
                 
-                self.isfc['within'][:,:,i] = wb_isfc[0]
-                self.isfc['between'][:,:,i] = wb_isfc[1]
-                self.isc['within'][:,i] = wb_isfc[0].diagonal()
-                self.isc['between'][:,i] = wb_isfc[1].diagonal()
+                self.results['within'][..., i] = wb_result[0]
+                self.results['between'][..., i] = wb_result[1]
+                # self.isc['within'][:,i] = wb_result[0].diagonal()
+                # self.isc['between'][:,i] = wb_result[1].diagonal()
+
+        # TODO: filter fill only tested for entire ISC
+        if self.reduced_results == True:
+
+            self.results['entire']
