@@ -2,6 +2,7 @@
 /tests
 /scratch
 /sherlock_transfers
+/forward_tool_transfers
 **/data
 **/__pycache__
 
