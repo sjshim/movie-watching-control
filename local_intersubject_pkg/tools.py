@@ -5,9 +5,23 @@ import os
 import glob
 import json
 from json.decoder import JSONDecodeError
+from itertools import reduce
 
 import numpy as np
 import nibabel as nib
+
+def get_factors(n, sort=True):
+    """
+    Calculate all factors of n; optionally return sorted
+    """
+    factors = set(reduce(list.__add__, 
+                ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)))
+    factors = list(factors)
+    if sort:
+        factors.sort()
+    return factors
+
+
 
 # =============================
 # Basic data handling functions
