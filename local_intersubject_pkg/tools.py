@@ -21,6 +21,27 @@ def get_factors(n, sort=True):
         factors.sort()
     return factors
 
+def count_nans(data, non_nans=False):
+    """Counts the number of NaN (or optionally, non-NaN) values in a given array."""
+    if non_nans:
+        nans = ~np.isnan(data)
+    else:
+        nans = np.isnan(data)
+    return np.count_nonzero(nans)
+
+def array2nifti(vol_shape, affine, header=None):
+    """
+    Provide the closure funciton with necessary Nifti1Image object info, 
+    then return a function that lets you easily transform a 3d array into a 
+    Nifti1Image without needing to provide the preceding arguments every time.
+
+    This function is intended to work for data arrays that were not 
+    obtained from a Nilearn NiftiMasker object, as those data can be 
+    easily transformed back using the masker_obj.inverse_transform() method. 
+    """
+    def reshaper(arr):
+        return nib.Nifti1Image(arr.reshape(vol_shape), affine, header)
+    return reshaper
 
 
 # =============================

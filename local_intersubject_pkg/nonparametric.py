@@ -4,7 +4,10 @@
 import os
 from functools import partial
 import numpy as np
+from scipy.stats import (pearsonr, spearmanr, rankdata, ttest_ind,
+ttest_rel, ttest_1samp)
 from joblib import Parallel, delayed, dump, load
+
 
 def null_threshold(observed, null_dist, alpha=0.05, max_stat=False):
     """
@@ -75,7 +78,6 @@ def perm_signflip(x, stat_func=partial(np.mean, axis=0),
         return null_dist
 
 
-
 def perm_grouplabel(x1, x2, stat_func, 
                     n_iter=100, 
                     tail='greater', 
@@ -137,5 +139,47 @@ def perm_grouplabel(x1, x2, stat_func,
     if apply_threshold:
 #         return null_threshold(avg(stat_func(x1, x2), axis=0), null_dist, **threshold_kwargs)
         return null_threshold(stat_func(x1, x2), null_dist, **threshold_kwargs)
+    else:
+        return null_dist
+
+
+def perm_mantel(x1, x2, tri_func='spearman', 
+                n_iter=100, 
+                apply_threshold=False,
+                threshold_kw={'alpha':0.05, 'max_stat':False},
+                n_jobs=None, 
+                joblib_kw={}):
+
+    """
+    Perform mantel permutation test to assess the significance of correlation
+    between two pairwise matrices' upper triangles. The test is performed by
+    randomly shuffling the rows and columns of one of the two matrices, then
+    correlation the two triangles over n iterations.
+    """
+    
+    if tri_func == 'spearman':
+        tri_func = spearmanr
+    elif tri_func == 'pearson':
+        tri_func = pearsonr
+    elif tri_func is None:
+        tri_func = spearmanr
+    
+    def shuffle_and_tri_func(a, b, seed=None):
+        rng = np.random.default_rng(seed)
+        rng.shuffle(b)
+        return tri_func(a, b)
+    
+    if n_jobs in (1, None):
+        null_dist = Parallel(n_jobs=n_jobs, **joblib_kw)\
+                    (delayed(shuffle_and_tri_func)(x1, x2, seed=i)
+                    for i in range(n_iter))
+    else:
+        null_dist = []
+        for i in range(n_iter):
+            null_dist.append(shuffle_and_tri_func(x1, x2, seed=i))
+    null_dist = np.array(null_dist)
+    
+    if apply_threshold:
+        return null_threshold(tri_func(x1, x2), null_dist, **threshold_kw)
     else:
         return null_dist

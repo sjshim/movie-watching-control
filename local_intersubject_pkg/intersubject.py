@@ -1,18 +1,26 @@
-# intersubject.py: Module contains an Intersubject class that provides
-# methods for computing one-sample and within-between 
-# intersubject correlation and intersubject functional correlation
+# intersubject.py: 
+# Purpose: Contains isc functions that expand on the designs in 
+# brainiak's isc module.
 
 from functools import partial
+from datetime import timedelta
+import logging
 
 import numpy as np
-
+import pandas as pd
 from joblib import Parallel, delayed
 from nibabel import Nifti1Image
+from scipy.stats import pearsonr, spearmanr
+from scipy.spatial.distance import squareform
 from brainiak.utils.utils import array_correlation, _check_timeseries_input
-from brainiak.isc import _threshold_nans
+from brainiak.isc import _threshold_nans, compute_summary_statistic
 
-from .tools import save_data
-from .basic_stats import compute_r, r_average
+logger = logging.getLogger(__name__)
+
+# ===================
+# Basic ISC functions
+# ===================
+
 
 def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs=None):
     """Brainiak ISC implemntation but with Joblib parallelisation."""
@@ -94,7 +102,12 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
 
     return iscs
 
+
 def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kind=None):
+    """
+    Compute within-minus-between ISC between two group of subjects' timeseries
+    data.
+    """
     
     assert d1.shape == d2.shape, "d1 and d2 must have equal shapes"
     d1, d1_n_TRs, d1_n_voxels, d1_n_subs = _check_timeseries_input(d1)
@@ -152,8 +165,19 @@ def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kin
     else:
         return np.array([within_isc, between_isc])
 
-def segment_isc(data, seg_trs, method='loo', summary_statistic=None, tolerate_nans=True, 
+# ===========================
+# Movie-segment ISC functions
+# ===========================
+
+
+def isc_by_segment(data, seg_trs, method='loo', summary_statistic=None, tolerate_nans=True, 
                 subtract_wmb=False, n_jobs=None):
+    """
+    Compute an ISC variant repeatedly over every n segment of trs. 
+    This will return ISC results in a new array where axis=0's size is equal to
+    data.shape[0] / seg_trs.
+    """
+
     try:         
         if method != 'wmb':
             assert data.shape[0] % seg_trs == 0
@@ -189,3 +213,158 @@ def segment_isc(data, seg_trs, method='loo', summary_statistic=None, tolerate_na
             segment_isc.append(isc_func(data[start : end]))
         seg_idx -= 1
     return np.array(segment_isc)
+
+
+def tr_mask_from_segments(n_trs, seg_mask):
+    """Filter out TRs of timecourse data using a mask representing TR segments"""
+    assert n_trs % len(seg_mask) == 0, f"n_trs {n_trs} is not divisible into {len(seg_mask)} segments"
+    
+    # infer how many TRs are represented by the seg_mask
+    seg_size_trs = n_trs // len(seg_mask)
+    tr_mask = np.full(n_trs, False)
+    for i, seg in enumerate(seg_mask):
+        if seg == True:
+            tr_mask[seg_size_trs*i : seg_size_trs*(i+1)] = np.full(seg_size_trs, True)
+    return tr_mask
+
+
+def filter_segment_trs(data, seg_mask, axis=0):
+    """Get TR subset of original data based on seg_mask"""
+    assert data.shape[axis] % len(seg_mask) == 0, f"data size on axis {axis} ({data.shape[axis]}) is not divisible into {len(seg_mask)} segments"
+    tr_mask = tr_mask_from_segments(data.shape[axis], seg_mask)
+    tr_indices = np.where(tr_mask==True)
+    return np.squeeze(np.take(data, tr_indices, axis=axis))
+
+
+def movie_seg_compute(seg_mask, func, *data):
+    """
+    Obtain a subset of TRs using a TR segment mask, then compute a function
+    on the new timeseries data.
+
+    Axis=0 of the given data array is assumed to represent TRs by default.
+    More than one data array can be provided.
+
+    EG:
+    stimulus_present_isc = movie_seg_compute([True, False, True, False],
+                                    partial(isc_func, n_jobs=-1),
+                                    movie_data)
+    """
+    data_subset = [filter_segment_trs(d, seg_mask, axis=0) for d in data]
+    return func(*data_subset)
+    
+
+def timestamps_from_segments(n_segs, n_trs, TR, return_as="h:m:s"):
+    """Calculate the timestamps that correspond to n_segs out of n_trs for some 
+    timecourse data.
+    
+    TR is assumed to be given in seconds
+    """
+    assert n_trs % n_segs == 0, f"n_trs ({n_trs}) must be divisible by seg_mask size ({n_segs})"
+    seg_size_trs = n_trs // n_segs
+    seg_size_seconds = seg_size_trs * TR 
+    timestamps = []
+    for seg in range(n_segs):
+        timestamps.append(timedelta(seconds=seg_size_seconds*(seg+1)))
+        
+    if return_as == "h:m:s":
+        return [f"{t}" for t in timestamps]
+    elif return_as == "seconds":
+        return [t.seconds for t in timestamps] 
+
+
+# =======================
+# RSA-based ISC functions
+# =======================
+
+
+def finn_isrsa(data=None, pwise_isc=None, 
+               behav_data=None, pwise_behav=None, 
+               pwise_func=None, tri_func=None, 
+               n_jobs=None, joblib_kw={}):   
+    """Calculate intersubject representational similarity analysis (IS-RSA) as
+    described in Finn et al. (2020) [1].
+    
+    
+    References:
+    [1]
+    Finn, E. S., Glerean, E., Khojandi, A. Y., Nielson, D., Molfese, P. J., 
+    Handwerker, D. A., & Bandettini, P. A. (2020). Idiosynchrony: From shared 
+    responses to individual differences during naturalistic neuroimaging. 
+    NeuroImage, 215, 116828.
+    """
+
+    if tri_func == 'spearman':
+        tri_func = lambda x1, x2: spearmanr(x1, x2)[0]
+    elif tri_func == 'pearson':
+        tri_func = lambda x1, x2: pearsonr(x1, x2)[0]
+    
+    if pwise_isc is None:
+        pwise_isc = isc(data, pairwise=True, n_jobs=n_jobs)
+    if pwise_behav is None:
+        pwise_behav = pwise_func(behav_data)
+    
+    if n_jobs in (1, None):
+        pwise_behav = tri2vect(pwise_behav)
+        isrsa_by_node = Parallel(n_jobs, **joblib_kw)\
+                        (delayed(tri_func)(pwise_isc[:,node_i], pwise_behav)
+                        for node_i in range(pwise_isc.shape[1]))
+        
+    else:
+        pwise_behav = tri2vect(pwise_behav)
+        isrsa_by_node = []
+        for node_i in range(pwise_isc.shape[1]): # assumes pwise_isc input is (n_pairs, n_nodes)
+            isrsa_by_node.append(tri_func(
+                        pwise_isc[:, node_i], 
+                        pwise_behav))
+    
+    return np.array(isrsa_by_node)
+
+# Define helper functions from finn is-rsa tutorial
+def reorder_square_mtx(mtx, sort_idx, sort=True):
+    """Sorts rows/columns of a matrix according to a separate vector."""
+    inds = sort_idx.argsort()
+    mtx_sorted = mtx.copy()
+    if type(mtx_sorted) == pd.DataFrame:
+        mtx_sorted = mtx_sorted.to_numpy()
+    mtx_sorted = mtx_sorted[inds, :]
+    mtx_sorted = mtx_sorted[:, inds]
+    return mtx_sorted
+    
+def scale_mtx(mtx):
+    return (mtx-np.min(mtx)) / (np.max(mtx) - np.min(mtx))
+
+def tri2vect(mtx, upper=True, sort_idx=None, k=None):
+    """Get triangle of a square matrix as a vector"""
+    if type(mtx) == pd.DataFrame:
+        mtx = mtx.to_numpy()
+    if sort_idx is not None:
+        mtx = reorder_square_mtx(mtx, sort_idx, sort=True)
+        
+    if k is None:
+        if upper:
+            k = 1
+        else:
+            k = -1
+    if upper:
+        trifunc = partial(np.triu_indices, k=k)
+    else:
+        trifunc = partial(np.tril_indices, k=k)
+    return mtx[trifunc(mtx.shape[0])]
+
+def pair_scalar(fn, x):
+    out = np.full((x.shape[0], x.shape[0]), np.nan)
+    for i in range(x.shape[0]):
+        for j in range(x.shape[0]):
+            out[i, j] = fn(x[i], x[j])
+    return out
+
+def avg_corr(avg_fn, data, above_zero=True):
+    """
+    Return the average positive (or negative) correlation in an array
+    of correlation values range from -1 to 1. 
+    """
+    if above_zero:
+        data = np.where(data > 0.0, data, np.nan)
+    else: 
+        data = np.where(data < 0.0, data, np.nan)
+    return avg_fn(data)
