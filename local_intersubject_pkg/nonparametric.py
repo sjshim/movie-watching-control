@@ -1,12 +1,10 @@
 # nonparametric.py: This module contains functions for nonparametric assessment
 # and thresholding of fMRI data produced during intersubject analysis.
 
-from multiprocessing import Pool
-
+import os
+from functools import partial
 import numpy as np
-
-from .basic_stats import r_average
-from local_intersubject_pkg.intersubject import Intersubject
+from joblib import Parallel, delayed, dump, load
 
 def null_threshold(observed, null_dist, alpha=0.05, max_stat=False):
     """

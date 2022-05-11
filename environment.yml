@@ -1,0 +1,15 @@
+name: isc_multipkg_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip
+  - ipython
+  - jupyter
+  - notebook
+  - ipykernel
+  - pip:
+    - nilearn==0.9.0
+    - brainiak==0.11
+    - nltools==0.4.5
+prefix: /home/users/jazam/miniconda3/envs/isc_multipkg_env

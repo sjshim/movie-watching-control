@@ -11,11 +11,11 @@ test_script.py
 subjects.py
 run_fake_prep.py
 *.sh
+*.txt
 sherlock_script.sh
 my_script_setup.sh
 EXAMPLE_script_settings.json
-requirements.txt
-environment.yml
+environment_full.yml
 subjects.json
 *.egg-info
 *.code-workspace
