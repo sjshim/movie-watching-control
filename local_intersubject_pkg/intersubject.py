@@ -23,7 +23,47 @@ logger = logging.getLogger(__name__)
 
 
 def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs=None):
-    """Brainiak ISC implemntation but with Joblib parallelisation."""
+    """
+    Calculate leave-one-out (loo-ISC) or pairwise ISC.
+        loo-ISC: for each brain region, correlate the subject i's timeseries
+        with the group average-minus-subject-i's timeseries.
+
+        pairwise-ISC: for each brain region, compute the pairwise correlation
+        matrix between every pair of subject's timeseries.
+
+    Parameters
+    ----------
+    data: 3d array of shape (n_TRs, n_regions, n_subjects)
+        An array of individual-level brain timeseries data
+    
+    pairwise: bool, default=False
+        If True, compute pairwise ISC. Otherwise, leave-one-out ISC is
+        computed by default.
+
+    summary_statistic: str, default=None
+        Choose to average ISC results using 'mean' or 'median'. ISC values
+        are automatically Fisher Z transformd before being averaged and
+        inverse Fisher Z transformed back as r-values.
+
+    tolerate_nans: bool, default=True
+        The proportion of subjects with non-NaN values required to keep
+        voxel.
+
+    n_jobs: int, default=None
+        Number of processers to devote to performing computation
+        in parallel. If None, then a normal for loop with be used;
+        if -1, then all processors will be used to parallelize computation. 
+
+        This function extends the Brainiak ISC implementation with 
+        Joblib parallelisation.
+        
+    Returns
+    -------
+    array, where shape is:
+        (n_subjects, n_brain_region_iscs) if pairwise=False
+        (n_subject_pairs, n_brain_region_iscs) if pairwise=True
+        (n_subjects_or_subject_pairs) if summary_statistic=True
+    """
 
     # Check response time series input format
     data, n_TRs, n_voxels, n_subjects = _check_timeseries_input(data)
@@ -103,13 +143,53 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
     return iscs
 
 
-def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kind=None):
+def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None, 
+            tolerate_nans=True, n_jobs=None):
     """
     Compute within-minus-between ISC between two group of subjects' timeseries
-    data.
+    data. This is calculate for each subject by calculating within-group ISC
+    (subject correlated with the within-group average) and between-group ISC
+    (subject correlated with the group-minus-subject-i average) for each brain 
+    region. Each subject's own within-group and between-group ISCs are finally
+    subtracted from one another to obtain their within-minus-between ISC.
+
+    Parameters
+    ----------
+    d1, d2: 3d arrays of shape (n_TRs, n_regions, n_subjects) for two
+        groups of subjects's timeseries data.
+    
+    pairwise: bool, default=False
+        If True, compute pairwise ISC. Otherwise, leave-one-out ISC is
+        computed by default.
+
+    summary_statistic: str, default=None
+        Choose to average ISC results using 'mean' or 'median'. ISC values
+        are automatically Fisher Z transformd before being averaged and
+        inverse Fisher Z transformed back as r-values.
+
+    tolerate_nans: bool, default=True
+        The proportion of subjects with non-NaN values required to keep
+        voxel.
+
+    n_jobs: int, default=None
+        Number of processers to devote to performing computation
+        in parallel. If None, then a normal for loop with be used;
+        if -1, then all processors will be used to parallelize computation. 
+
+        This function extends the Brainiak ISC implementation with 
+        Joblib parallelisation.
+        
+    Returns
+    -------
+    array, where shape is:
+        (within_and_between_group, n_subjects, n_brain_region_iscs) if subtract_wmb=False
+        (n_subjects, n_brain_region_wmb_iscs) if subtract_wmb=True
+        (n_subjects) if subtract_wmb=True and summary_statistic=True
+
+
     """
     
-    assert d1.shape == d2.shape, "d1 and d2 must have equal shapes"
+    # assert d1.shape == d2.shape, "d1 and d2 must have equal shapes"
     d1, d1_n_TRs, d1_n_voxels, d1_n_subs = _check_timeseries_input(d1)
     d2, d2_n_TRs, d2_n_voxels, d2_n_subs = _check_timeseries_input(d2)
     
@@ -117,8 +197,12 @@ def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kin
         mean = np.nanmean
     else:
         mean = np.mean
-    d1, d1_mask = _threshold_nans(d1, tolerate_nans)
-    d2, d2_mask = _threshold_nans(d2, tolerate_nans)
+    d1_and_d2 = np.append(d1, d2, axis=-1)
+    d1_and_d2, mask = _threshold_nans(d1_and_d2, tolerate_nans)
+    d1 = d1_and_d2[..., : d1_n_subs]
+    d2 = d1_and_d2[..., d1_n_subs :]
+    del d1_and_d2
+    # d2, d2_mask = _threshold_nans(d2, tolerate_nans)
     
     # Calculate within and between group isc for each group separately, then append
     loo_corr = lambda x, s: array_correlation(
@@ -132,17 +216,18 @@ def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kin
     b_iscs_stack = []
     data_tup = (d1, d2)
     for idx, d in enumerate(data_tup):
+        n_subjects = data_tup[idx].shape[-1]
         if n_jobs not in (1, None):
             w_iscs_stack += Parallel(n_jobs=n_jobs)\
                              (delayed(loo_corr)(data_tup[idx], s)
-                             for s in range(d1_n_subs))
+                             for s in range(n_subjects))
             
             b_iscs_stack += Parallel(n_jobs=n_jobs)\
                               (delayed(one2avg_corr)(data_tup[idx][...,s], data_tup[idx-1])
-                              for s in range(d1_n_subs))
+                              for s in range(n_subjects))
             
         else:
-            for s in range(d1_n_subs):
+            for s in range(n_subjects):
                 w_iscs_stack.append(loo_corr(data_tup[idx], s))
                 
                 b_iscs_stack.append(one2avg_corr(data_tup[idx][...,s], 
@@ -153,15 +238,22 @@ def wmb_isc(d1, d2, subtract_wmb=False, tolerate_nans=True, n_jobs=None, avg_kin
     # Get original data shape after masking out NaNs
     within_isc = np.full((w_iscs_stack.shape[0], d1_n_voxels), np.nan)
     between_isc = np.full((b_iscs_stack.shape[0], d1_n_voxels), np.nan)
-    within_isc[:, np.where(d1_mask)[0]] = w_iscs_stack
-    between_isc[:, np.where(d1_mask)[0]] = b_iscs_stack
+    within_isc[:, np.where(mask)[0]] = w_iscs_stack
+    between_isc[:, np.where(mask)[0]] = b_iscs_stack
     
+    if summary_statistic:
+        iscs = compute_summary_statistic(iscs,
+                                         summary_statistic=summary_statistic,
+                                         axis=0)[np.newaxis, :]
+
+
     if subtract_wmb:
-        wmb = within_isc - between_isc
-        if avg_kind:
-            return avg_kind(wmb, axis=0)
-        else:
-            return wmb
+        wmb_iscs = within_isc - between_isc
+        if summary_statistic:
+            wmb_iscs = compute_summary_statistic(wmb_iscs,
+                                            summary_statistic=summary_statistic,
+                                            axis=0)[np.newaxis, :]
+        return wmb_iscs
     else:
         return np.array([within_isc, between_isc])
 
