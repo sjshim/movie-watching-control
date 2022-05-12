@@ -9,21 +9,31 @@ from nilearn.plotting import plot_stat_map
 from nonparametric import null_threshold
 from tools import get_factors, count_nans
 
-def transform_and_plot(transform_func, plotter_func):
-    """Small closure function for any nilearn plotting function 
-    that automatically inverse transforms array data back into Nifti1Image
-    using a functon that transform data from array to an Nifti1Image object 
-    before plotting results.
+def transform_and_plot(transform_func, plotter_func, 
+                        *outer_plot_args, **outer_plot_kwargs):
+    """
+    Small closure function for any plotting function that automatically 
+    transforms an input data into a plotting-compatible form before the 
+    tranformed data is finally plotted. 
+    
+    In addition, plotter function args can be provided to the outer 
+    transform_and_plot() function to ensure they exist by default any
+    time the inner plotter() function is called, while optional plotter args can
+    be provided to modify how the inner plotter() function behaves for
+    each function call.
     
     eg.,
     fig, ax = plt.subplots()
-    custom_stat_map = transform_and_plot(gm_masker.inverse_transform, plot_stat_map)
-    custom_stat_map(observed_stats, threshold=0.2, axes=ax)
+    custom_stat_map = transform_and_plot(gm_masker.inverse_transform, plot_stat_map
+                                        threshold=0.2)
+    custom_stat_map(observed_stats, axes=ax)
     plt.show()
     """
-    def plotter(vox_stats, *stat_map_args, **stat_map_kwargs):
+    def plotter(vox_stats, *inner_plot_args, **inner_plot_kwargs):
+        plot_args = [*outer_plot_args, *inner_plot_args]
+        plot_kwargs = {**outer_plot_kwargs, **inner_plot_kwargs}
         transformed_data = transform_func(vox_stats)
-        return plotter_func(transformed_data, *stat_map_args, **stat_map_kwargs)
+        return plotter_func(transformed_data, *plot_args, **plot_kwargs)
     return plotter
 
 def get_subplot_grid(n_plots, grid_shape='squarish'):
