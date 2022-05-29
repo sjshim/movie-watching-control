@@ -24,7 +24,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from nilearn import plotting
 
-from local_intersubject_pkg.tools import save_data, get_setting, prep_data
+from local_intersubject_pkg.utils.tools import save_data, get_setting, prep_data
 from local_intersubject_pkg.intersubject import Intersubject
 from local_intersubject_pkg.nonparametric import perm_signflip, perm_grouplabel
 

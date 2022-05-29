@@ -3,6 +3,7 @@
 /scratch
 /sherlock_transfers
 /forward_tool_transfers
+/jupyter_scratch
 **/data
 **/__pycache__
 

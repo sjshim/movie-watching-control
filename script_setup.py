@@ -7,7 +7,7 @@ import argparse
 # import configparser
 import json
 
-from local_intersubject_pkg.tools import create_directory
+from local_intersubject_pkg.utils.tools import create_directory
 
 def create_script_settings(project_path, data_dest, nifti_path=None, 
                         nifti_func=None, nifti_anat=None, create_dir=False, 
