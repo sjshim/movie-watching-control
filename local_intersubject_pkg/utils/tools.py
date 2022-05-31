@@ -5,7 +5,7 @@ import os
 import glob
 import json
 from json.decoder import JSONDecodeError
-from itertools import reduce
+from functools import reduce
 
 import numpy as np
 import nibabel as nib

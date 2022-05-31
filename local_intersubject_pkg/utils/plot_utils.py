@@ -6,8 +6,8 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 from nilearn.plotting import plot_stat_map
 
-from nonparametric import null_threshold
-from tools import get_factors, count_nans
+from local_intersubject_pkg.nonparametric import null_threshold
+from local_intersubject_pkg.utils.tools import get_factors, count_nans
 
 def transform_and_plot(transform_func, plotter_func, 
                         *outer_plot_args, **outer_plot_kwargs):
