@@ -1,0 +1,6 @@
+ipython
+jupyter
+notebook
+ipykernel
+nilearn==0.9.0
+nltools==0.4.5

@@ -12,8 +12,8 @@ from joblib import Parallel, delayed
 from nibabel import Nifti1Image
 from scipy.stats import pearsonr, spearmanr
 from scipy.spatial.distance import squareform
-from brainiak.utils.utils import array_correlation, _check_timeseries_input
-from brainiak.isc import _threshold_nans, compute_summary_statistic
+from utils.bnk_funcs import (array_correlation, _check_timeseries_input,
+                            _threshold_nans, compute_summary_statistic)
 
 logger = logging.getLogger(__name__)
 

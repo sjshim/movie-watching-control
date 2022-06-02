@@ -9,7 +9,6 @@
 
 # Ignore these files
 *.sh
-*.txt
 script_settings_copy.json
 test_script.py
 subjects.py
