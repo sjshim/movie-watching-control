@@ -1,5 +1,4 @@
 # Ignore these directories
-/tests
 /scratch
 /sherlock_transfers
 /forward_tool_transfers
@@ -9,6 +8,7 @@
 
 # Ignore these files
 *.sh
+uninstall.txt
 script_settings_copy.json
 test_script.py
 subjects.py

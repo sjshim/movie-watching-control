@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 from nibabel import Nifti1Image
 from scipy.stats import pearsonr, spearmanr
 from scipy.spatial.distance import squareform
-from utils.bnk_funcs import (array_correlation, _check_timeseries_input,
+from .utils.bnk_funcs import (array_correlation, _check_timeseries_input,
                             _threshold_nans, compute_summary_statistic)
 
 logger = logging.getLogger(__name__)
@@ -140,6 +140,7 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
     if iscs.shape[0] == 1:
         iscs = iscs[0]
 
+    # return iscs.T
     return iscs
 
 
