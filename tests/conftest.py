@@ -29,6 +29,11 @@ def simulated_timeseries(n_subjects, n_TRs, n_voxels=30,
     return data
 
 
+@pytest.fixture
+def fxt_simulated_timeseries():
+    return simulated_timeseries
+
+
 # Create 3 voxel simulated data with correlated time series
 def correlated_timeseries(n_subjects, n_TRs, noise=0,
                           random_state=None):
@@ -49,6 +54,11 @@ def correlated_timeseries(n_subjects, n_TRs, noise=0,
     data = np.concatenate((data, uncorrelated), axis=1)
     data = data + prng.standard_normal((n_TRs, 3, n_subjects)) * noise
     return data
+
+
+@pytest.fixture
+def fxt_correlated_timeseries():
+    return correlated_timeseries
 
 
 def pytest_configure():

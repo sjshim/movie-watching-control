@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 # Compute ISCs using different input types
 # List of subjects with one voxel/ROI
-def test_isc_input():
+class TestIscInput:
+    """Test that isc() works with list or np.array input type for 
+    one or more brain regions"""
 
     # Set parameters for toy time series data
     n_subjects = 20
@@ -18,42 +20,55 @@ def test_isc_input():
     n_voxels = 30
     random_state = 42
 
-    logger.info("Testing ISC inputs")
+    def test_single_region(self, fxt_simulated_timeseries):
+        logger.info("Running TestIscInputs.test_single_region()")
 
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=None, data_type='list',
-                                random_state=random_state)
-    iscs_list = isc(data, pairwise=False, summary_statistic=None)
+        n_subjects = self.n_subjects
+        n_TRs = self.n_TRs
+        random_state = self.random_state
 
-    # Array of subjects with one voxel/ROI
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=None, data_type='array',
-                                random_state=random_state)
-    iscs_array = isc(data, pairwise=False, summary_statistic=None)
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=None, data_type='list',
+                                    random_state=random_state)
+        iscs_list = isc(data, pairwise=False, summary_statistic=None)
 
-    # Check they're the same
-    assert np.array_equal(iscs_list, iscs_array)
+        # Array of subjects with one voxel/ROI
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=None, data_type='array',
+                                    random_state=random_state)
+        iscs_array = isc(data, pairwise=False, summary_statistic=None)
 
-    # List of subjects with multiple voxels/ROIs
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=n_voxels, data_type='list',
-                                random_state=random_state)
-    iscs_list = isc(data, pairwise=False, summary_statistic=None)
+        # Check they're the same
+        assert np.array_equal(iscs_list, iscs_array)
 
-    # Array of subjects with multiple voxels/ROIs
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=n_voxels, data_type='array',
-                                random_state=random_state)
-    iscs_array = isc(data, pairwise=False, summary_statistic=None)
+    def test_multiple_regions(self, fxt_simulated_timeseries):
+        logger.info("Running TestIscInputs.test_multiple_regions()")
 
-    # Check they're the same
-    assert np.array_equal(iscs_list, iscs_array)
+        n_subjects = self.n_subjects
+        n_TRs = self.n_TRs
+        n_voxels = self.n_voxels
+        random_state = self.random_state
+        
+        # List of subjects with multiple voxels/ROIs
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=n_voxels, data_type='list',
+                                    random_state=random_state)
+        iscs_list = isc(data, pairwise=False, summary_statistic=None)
 
-    logger.info("Finished testing ISC inputs")
+        # Array of subjects with multiple voxels/ROIs
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=n_voxels, data_type='array',
+                                    random_state=random_state)
+        iscs_array = isc(data, pairwise=False, summary_statistic=None)
+
+        # Check they're the same
+        assert np.array_equal(iscs_list, iscs_array)
+
+        logger.info("Finished testing ISC inputs")
 
 
 # Check pairwise and leave-one-out, and summary statistics for ISC
-def test_isc_options():
+def test_isc_options(fxt_simulated_timeseries):
 
     # Set parameters for toy time series data
     n_subjects = 20
@@ -63,7 +78,7 @@ def test_isc_options():
 
     logger.info("Testing ISC options")
 
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
+    data = fxt_simulated_timeseries(n_subjects, n_TRs,
                                 n_voxels=n_voxels, data_type='array',
                                 random_state=random_state)
 
@@ -91,11 +106,11 @@ def test_isc_options():
 
 
 # Make sure ISC recovers correlations of 1 and less than 1
-def test_isc_output():
+def test_isc_output(fxt_correlated_timeseries):
 
     logger.info("Testing ISC outputs")
 
-    data = pytest.correlated_timeseries(20, 60, noise=0,
+    data = fxt_correlated_timeseries(20, 60, noise=0,
                                  random_state=42)
     iscs = isc(data, pairwise=False)
     assert np.allclose(iscs[:, :2], 1., rtol=1e-05)
@@ -109,7 +124,7 @@ def test_isc_output():
 
 
 # Check for proper handling of NaNs in ISC
-def test_isc_nans():
+def test_isc_nans(fxt_simulated_timeseries):
 
     # Set parameters for toy time series data
     n_subjects = 20
@@ -119,7 +134,7 @@ def test_isc_nans():
 
     logger.info("Testing ISC options")
 
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
+    data = fxt_simulated_timeseries(n_subjects, n_TRs,
                                 n_voxels=n_voxels, data_type='array',
                                 random_state=random_state)
 
@@ -177,7 +192,7 @@ def test_isc_nans():
                         np.sum(np.isnan(iscs_loo_60), axis=0),
                         np.sum(np.isnan(iscs_loo_70), axis=0))))
 
-    data = pytest.simulated_timeseries(n_subjects, n_TRs,
+    data = fxt_simulated_timeseries(n_subjects, n_TRs,
                                 n_voxels=n_voxels, data_type='array',
                                 random_state=random_state)
 
@@ -897,7 +912,7 @@ def test_isc_nans():
 
 
 if __name__ == '__main__':
-    test_isc_input()
+    TestIscInput()
     test_isc_options()
     test_isc_output()
     test_isc_nans()
