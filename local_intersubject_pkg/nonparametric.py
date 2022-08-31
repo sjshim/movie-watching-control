@@ -3,33 +3,77 @@
 
 import os
 from functools import partial
+import logging
+
 import numpy as np
 from scipy.stats import (pearsonr, spearmanr, rankdata, ttest_ind,
 ttest_rel, ttest_1samp)
 from joblib import Parallel, delayed, dump, load
 
+logger = logging.getLogger(__name__)
 
-def null_threshold(observed, null_dist, alpha=0.05, max_stat=False):
+def null_threshold(observed, null_dist, alpha=0.05, which_side='upper', max_stat=False, return_type='sig_vals'):
     """
     Threshold observed statistics using a null distribution of the statistic.
     Thresholding can optionally be performed using the maximum statistic
     from each iteration of the provided null distribution.
-    """
-    # Obtain max stat distribution then threshold observed data 
-    if max_stat:
-        null_dist = np.nanmax(null_dist, axis=1)
-        null_count = []
-        for i in range(observed.shape[0]):
-            null_count.append((null_dist > observed[i]).sum())
-        null_count = np.array(null_count)
-#         mask = (null_count / observed.shape[0]) < alpha
 
-    # Directly threshold observed data using provided null distribution
-    else:
-        null_count = (null_dist > observed).sum(axis=0)
-    mask = (null_count / null_dist.shape[0]) < alpha   
-    
-    return np.where(mask==True, observed, np.nan)
+    The steps of this function involve the following:
+        - check whether the observed statistics were less extreme than the null
+          statistic; return True if null is more extreme and False if observed is
+          more extreme
+        - count the number of True values, then divide the number of True values
+          by the total number of null values
+        - compare to see that the True proportion is less than alpha;
+          if True, then that observed statistic is judged to be significant and
+          is returned, if False then return np.NaN
+    """
+    if not isinstance(observed, np.ndarray): raise TypeError(f"observed was type '{type(observed)}', but must be np.ndarray")
+    if not isinstance(null_dist, np.ndarray): raise TypeError(f"null_dist was type '{type(null_dist)}', but must be np.ndarray")
+    if observed.shape[0] not in null_dist.shape: raise ValueError(f"observed.shape[0] and null_dist.shape[1] must be the same, but were '{observed.shape}' and '{null_dist.shape}' instead")
+    if null_dist.ndim > 2:
+        raise AttributeError(f"null_dist had {null_dist.ndim} dimensions, but must be 2 or less")
+    if not isinstance(alpha, float): raise TypeError(f"alpha was type '{type(alpha)}', but must be float")
+    if which_side not in ['upper', 'lower', 'both']: raise ValueError(f"which_side was '{which_side}', but should be 'upper', 'lower', or 'both'")
+    if max_stat not in [True, False]: raise ValueError(f"max_stat was '{max_stat}', but must be either True or False")
+    if return_type not in ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask']: raise ValueError(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
+    if max_stat == True and return_type == 'null_mask': raise ValueError(f"max_stat cannot be used with return_type='null_mask")
+    if null_dist.ndim == 1:
+        null_dist = null_dist[None, :]
+    compare_func = {
+        'upper': (lambda d, n: d > n),
+        'lower': (lambda d, n: d < n),
+        'both': (lambda d, n: d>n or d<n)
+    }
+    operator = compare_func[which_side]
+
+    try:
+        # Obtain max stat distribution then threshold observed data 
+        if max_stat:
+            null_dist = np.nanmax(null_dist, axis=1)
+            out = np.array([operator(null_dist, observed[i]).sum() for i in range(observed.shape[0])])
+
+        # Directly threshold observed data using provided null distribution
+        else:
+            out = operator(null_dist, observed)
+            if return_type == 'null_mask':
+                return out
+            out = out.sum(axis=0)
+
+        if return_type == 'null_ct':
+            return out
+        out = out / null_dist.shape[0]
+        if return_type == 'pvals':
+            return out
+        out = out < alpha
+        if return_type == 'stat_mask':
+            return out
+        out = np.where(out==True, observed, np.nan)
+        return out
+
+    except BaseException as err:
+        logger.exception(err)
+        raise
 
 
 # sign flip permutation test
