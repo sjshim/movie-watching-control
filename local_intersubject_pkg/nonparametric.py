@@ -12,7 +12,7 @@ from joblib import Parallel, delayed, dump, load
 
 logger = logging.getLogger(__name__)
 
-def null_threshold(observed, null_dist, alpha=0.05, which_side='upper', max_stat=False, return_type='sig_vals'):
+def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False, return_type='sig_vals'):
     """
     Threshold observed statistics using a null distribution of the statistic.
     Thresholding can optionally be performed using the maximum statistic
@@ -34,7 +34,7 @@ def null_threshold(observed, null_dist, alpha=0.05, which_side='upper', max_stat
     if null_dist.ndim > 2:
         raise AttributeError(f"null_dist had {null_dist.ndim} dimensions, but must be 2 or less")
     if not isinstance(alpha, float): raise TypeError(f"alpha was type '{type(alpha)}', but must be float")
-    if which_side not in ['upper', 'lower', 'both']: raise ValueError(f"which_side was '{which_side}', but should be 'upper', 'lower', or 'both'")
+    if tail not in ['upper', 'lower', 'both']: raise ValueError(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
     if max_stat not in [True, False]: raise ValueError(f"max_stat was '{max_stat}', but must be either True or False")
     if return_type not in ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask']: raise ValueError(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
     if max_stat == True and return_type == 'null_mask': raise ValueError(f"max_stat cannot be used with return_type='null_mask")
@@ -45,7 +45,7 @@ def null_threshold(observed, null_dist, alpha=0.05, which_side='upper', max_stat
         'lower': (lambda d, n: d < n),
         'both': (lambda d, n: d>n or d<n)
     }
-    operator = compare_func[which_side]
+    operator = compare_func[tail]
 
     try:
         # Obtain max stat distribution then threshold observed data 

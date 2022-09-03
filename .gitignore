@@ -3,6 +3,8 @@
 /sherlock_transfers
 /forward_tool_transfers
 /jupyter_scratch
+/joblib_memmap
+/.pytest_cache
 **/data
 **/__pycache__
 
