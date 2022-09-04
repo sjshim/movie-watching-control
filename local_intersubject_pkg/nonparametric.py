@@ -2,6 +2,7 @@
 # and thresholding of fMRI data produced during intersubject analysis.
 
 import os
+from pathlib import Path
 from functools import partial
 import logging
 
@@ -13,8 +14,15 @@ from joblib import Parallel, delayed, dump, load
 logger = logging.getLogger(__name__)
 
 valid_tail_args = ['upper', 'lower', 'both']
+valid_return_type_args = ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask'] 
+valid_null_threshold_kwargs = ['alpha', 'tail', 'max_stat', 'return_type']
 
-def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False, return_type='sig_vals'):
+def null_threshold(observed : np.ndarray, 
+                    null_dist : np.ndarray, 
+                    alpha: float = 0.05, 
+                    tail: str = 'upper', 
+                    max_stat: bool = False, 
+                    return_type: str = 'sig_vals') -> np.ndarray: 
     """
     Threshold observed statistics using a null distribution of the statistic.
     Thresholding can optionally be performed using the maximum statistic
@@ -30,16 +38,15 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
           if True, then that observed statistic is judged to be significant and
           is returned, if False then return np.NaN
     """
-    if not isinstance(observed, np.ndarray): raise TypeError(f"observed was type '{type(observed)}', but must be np.ndarray")
-    if not isinstance(null_dist, np.ndarray): raise TypeError(f"null_dist was type '{type(null_dist)}', but must be np.ndarray")
-    if observed.shape[0] not in null_dist.shape: raise ValueError(f"observed.shape[0] and null_dist.shape[1] must be the same, but were '{observed.shape}' and '{null_dist.shape}' instead")
-    if null_dist.ndim > 2:
-        raise AttributeError(f"null_dist had {null_dist.ndim} dimensions, but must be 2 or less")
-    if not isinstance(alpha, float): raise TypeError(f"alpha was type '{type(alpha)}', but must be float")
-    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
-    if max_stat not in [True, False]: raise ValueError(f"max_stat was '{max_stat}', but must be either True or False")
-    if return_type not in ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask']: raise ValueError(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
-    if max_stat == True and return_type == 'null_mask': raise ValueError(f"max_stat cannot be used with return_type='null_mask")
+    assert isinstance(observed, np.ndarray), print(f"observed was type '{type(observed)}', but must be np.ndarray")
+    assert isinstance(null_dist, np.ndarray), print(f"null_dist was type '{type(null_dist)}', but must be np.ndarray")
+    assert observed.shape[0] in null_dist.shape, print(f"observed.shape[0] and null_dist.shape[1] must be the same, but were '{observed.shape}' and '{null_dist.shape}' instead")
+    assert null_dist.ndim <= 2, print(f"null_dist had {null_dist.ndim} dimensions, but must be 2 or less")
+    assert isinstance(alpha, float), print(f"alpha was type '{type(alpha)}', but must be float")
+    assert tail in valid_tail_args, print(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
+    assert max_stat in [True, False], print(f"max_stat was '{max_stat}', but must be either True or False")
+    assert return_type in valid_return_type_args, print(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
+    assert not (max_stat == True and return_type == 'null_mask'), print(f"max_stat=True cannot be used with return_type='null_mask'")
     logger.debug(f"Running null_threshold()")
 
     if null_dist.ndim == 1:
@@ -86,13 +93,14 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
 
 
 # sign flip permutation test
-def perm_signflip(x, stat_func=partial(np.mean, axis=0), 
-                  n_iter=100,
-                  tail='upper', 
-                  apply_threshold=False, 
-                  threshold_kwargs={'alpha':0.05, 'max_stat':False},
-                  n_jobs=None,
-                  joblib_kwargs={}):
+def perm_signflip(x: np.ndarray, 
+                stat_func=partial(np.mean, axis=0), 
+                n_iter: int = 100,
+                tail: str = 'upper', 
+                apply_threshold: bool = False, 
+                threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False},
+                n_jobs=None,
+                joblib_kwargs={}) -> np.ndarray:
     """
     Perform a signflip permutation test on observed statistical results
     The positive/negative sign for the data from a random subset of subjects,
@@ -101,7 +109,15 @@ def perm_signflip(x, stat_func=partial(np.mean, axis=0),
     
     x must be an array with shape (n_features x n_samples)
     """
-    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but must be {valid_tail_args}")
+    assert isinstance(x, np.ndarray), print(f"x was type '{type(x)}', but should be np.ndarray")
+    assert isinstance(stat_func, type(lambda x:'')), f"stat_func was type '{type(stat_func)}', but should be a function object"
+    assert tail in valid_tail_args, print(f"tail was '{tail}', but must be {valid_tail_args}")
+    assert type(apply_threshold)==bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
+    assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
+        f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
+    assert isinstance(n_jobs, (type(None), int)), f"n_jobs was type '{type(n_jobs)}', but must be None or an int"
+    assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
+
 #     if avg_kind == 'mean':
 #         avg = partial(np.mean, axis=0)
 #     elif avg_kind == 'median':
@@ -148,7 +164,20 @@ def perm_grouplabel(x1, x2, stat_func,
     function is computed on the new groups; this is performed n_iter times
     and the null distribution of statistics is returned.
     """
-    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but must be {valid_tail_args}")
+    assert isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray), \
+        print(f"Both x1 and x2 must be type np.ndarray, but instead were '{type(x1)}' and '{type(x2)}'")
+    assert isinstance(stat_func, type(lambda x:'')), print(f"stat_func was type '{type(stat_func)}', but must be a function object")
+    assert tail in valid_tail_args, f"tail was '{tail}', but must be {valid_tail_args}"
+    assert avg_kind in ['mean', 'median'], print(f"avg_kind must be 'mean' or 'median'")
+    assert type(apply_threshold) == bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
+    assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
+            f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
+    assert isinstance(n_jobs, (type(None), int)), print(f"n_jobs was type '{type(n_jobs)}', but must be None or an int")
+    assert isinstance(memmap_dir, (type(None), str, Path)), print(f"memmap_dir was type '{type(memmap_dir)}', but must either be None or path-like (str or pathlib.Path)")
+    assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
+    
+
+    # if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but must be {valid_tail_args}")
 #     if avg_kind == 'mean':
 #         avg = np.mean
 #     elif avg_kind == 'median':
@@ -201,9 +230,9 @@ def perm_grouplabel(x1, x2, stat_func,
 def perm_mantel(x1, x2, tri_func='spearman', 
                 n_iter=100, 
                 apply_threshold=False,
-                threshold_kw={'alpha':0.05, 'max_stat':False},
+                threshold_kwargs={'alpha':0.05, 'max_stat':False},
                 n_jobs=None, 
-                joblib_kw={}):
+                joblib_kwargs={}):
 
     """
     Perform mantel permutation test to assess the significance of correlation
@@ -211,7 +240,16 @@ def perm_mantel(x1, x2, tri_func='spearman',
     randomly shuffling the rows and columns of one of the two matrices, then
     correlation the two triangles over n iterations.
     """
-    
+    assert isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray), \
+        print(f"Both x1 and x2 must be type np.ndarray, but instead were '{type(x1)}' and '{type(x2)}'")
+    assert type(tri_func)==type(lambda _:'') or tri_func in ['spearman', 'pearson', None], \
+        print(f"tri_func was '{tri_func}', but must either be a function object, or 'spearman', 'pearson', or None")
+    assert type(apply_threshold) == bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
+    assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
+            f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
+    assert isinstance(n_jobs, (type(None), int)), print(f"n_jobs was type '{type(n_jobs)}', but must be None or an int")
+    assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
+
     if tri_func == 'spearman':
         tri_func = spearmanr
     elif tri_func == 'pearson':
@@ -225,7 +263,7 @@ def perm_mantel(x1, x2, tri_func='spearman',
         return tri_func(a, b)
     
     if n_jobs in (1, None):
-        null_dist = Parallel(n_jobs=n_jobs, **joblib_kw)\
+        null_dist = Parallel(n_jobs=n_jobs, **joblib_kwargs)\
                     (delayed(shuffle_and_tri_func)(x1, x2, seed=i)
                     for i in range(n_iter))
     else:
@@ -235,6 +273,6 @@ def perm_mantel(x1, x2, tri_func='spearman',
     null_dist = np.array(null_dist)
     
     if apply_threshold:
-        return null_threshold(tri_func(x1, x2), null_dist, **threshold_kw)
+        return null_threshold(tri_func(x1, x2), null_dist, **threshold_kwargs)
     else:
         return null_dist

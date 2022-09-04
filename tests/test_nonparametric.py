@@ -256,8 +256,8 @@ class TestNullThreshold:
         (np.array([0,1,2]), np.array([[0,1,2],[5,5,5]]), does_not_raise()),
         (np.array([0,1,2]), np.array([0,1,2]), does_not_raise()),
         (np.array([0,1,2]), np.array([[0,1,2]]), does_not_raise()),
-        (np.array([0,1,2]), np.array([0,1,2,3]), pytest.raises(ValueError)),
-        (np.array([0,1,2]), np.array([[0,1,2,3],[5,5,5,5]]), pytest.raises(ValueError))
+        (np.array([0,1,2]), np.array([0,1,2,3]), pytest.raises(AssertionError)),
+        (np.array([0,1,2]), np.array([[0,1,2,3],[5,5,5,5]]), pytest.raises(AssertionError))
     ])
     def test_shape_mismatch(self, data, null, expectation):
         """
