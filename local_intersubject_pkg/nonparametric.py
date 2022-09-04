@@ -12,6 +12,8 @@ from joblib import Parallel, delayed, dump, load
 
 logger = logging.getLogger(__name__)
 
+valid_tail_args = ['upper', 'lower', 'both']
+
 def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False, return_type='sig_vals'):
     """
     Threshold observed statistics using a null distribution of the statistic.
@@ -34,7 +36,7 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
     if null_dist.ndim > 2:
         raise AttributeError(f"null_dist had {null_dist.ndim} dimensions, but must be 2 or less")
     if not isinstance(alpha, float): raise TypeError(f"alpha was type '{type(alpha)}', but must be float")
-    if tail not in ['upper', 'lower', 'both']: raise ValueError(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
+    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
     if max_stat not in [True, False]: raise ValueError(f"max_stat was '{max_stat}', but must be either True or False")
     if return_type not in ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask']: raise ValueError(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
     if max_stat == True and return_type == 'null_mask': raise ValueError(f"max_stat cannot be used with return_type='null_mask")
@@ -86,7 +88,7 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
 # sign flip permutation test
 def perm_signflip(x, stat_func=partial(np.mean, axis=0), 
                   n_iter=100,
-                  tail='greater', 
+                  tail='upper', 
                   apply_threshold=False, 
                   threshold_kwargs={'alpha':0.05, 'max_stat':False},
                   n_jobs=None,
@@ -99,6 +101,7 @@ def perm_signflip(x, stat_func=partial(np.mean, axis=0),
     
     x must be an array with shape (n_features x n_samples)
     """
+    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but must be {valid_tail_args}")
 #     if avg_kind == 'mean':
 #         avg = partial(np.mean, axis=0)
 #     elif avg_kind == 'median':
@@ -131,7 +134,7 @@ def perm_signflip(x, stat_func=partial(np.mean, axis=0),
 
 def perm_grouplabel(x1, x2, stat_func, 
                     n_iter=100, 
-                    tail='greater', 
+                    tail='upper', 
                     avg_kind='mean', 
                     apply_threshold=False, 
                     threshold_kwargs={'alpha':0.05, 'max_stat':False}, 
@@ -145,6 +148,7 @@ def perm_grouplabel(x1, x2, stat_func,
     function is computed on the new groups; this is performed n_iter times
     and the null distribution of statistics is returned.
     """
+    if tail not in valid_tail_args: raise ValueError(f"tail was '{tail}', but must be {valid_tail_args}")
 #     if avg_kind == 'mean':
 #         avg = np.mean
 #     elif avg_kind == 'median':
