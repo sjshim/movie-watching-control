@@ -92,9 +92,7 @@ def ref_null(data, stat_mask, n_iters=25, alpha=0.05, null_type='full', tail='up
         logger.debug(f"\nextreme_null_true={extreme_null_true}\nextreme_null_false={extreme_null_false}")
 
         null = np.full(shape=(n_iters, len(data)), fill_value=extreme_null_false)
-        null[:null_ct] = np.repeat(
-            np.repeat(extreme_null_true, len(data))[None,:], 
-            null_ct, axis=0)
+        null[:null_ct] = np.full(shape=(null_ct, len(data)), fill_value=extreme_null_true)
         logger.debug(f"null:\n{null}")
 
     return null
