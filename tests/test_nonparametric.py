@@ -156,6 +156,10 @@ class TestNullThreshold:
     """
 
     return_args = ['null_mask', 'null_ct', 'pvals', 'stat_mask', 'sig_vals']
+    n_iters_param = [25, 101, 1001]
+    stat_size_param = [10, 100, 1000]
+    mask_cutoff_param = [0.23, 0.55, 0.77]
+    which_tail_param = ['upper', 'lower']
 
     def assert_null_data(self, ref_data, obs_null):
         assert type(ref_data)==dict and type(obs_null)==dict, \
@@ -200,10 +204,10 @@ class TestNullThreshold:
 
         self.assert_null_data(ref_data, obs_null)
 
-    @pytest.mark.parametrize('n_iters', [25, 101, 1001])
-    @pytest.mark.parametrize('stat_size', [10, 100, 1000])
-    @pytest.mark.parametrize('mask_cutoff', [0.23, 0.55, 0.77])
-    @pytest.mark.parametrize('which_tail', ['upper', 'lower'])
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('stat_size', stat_size_param)
+    @pytest.mark.parametrize('mask_cutoff', mask_cutoff_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)
     def test_full_null(self, n_iters, stat_size, mask_cutoff, which_tail, 
                         fxt_ref_observed, fxt_ref_null):
         """
@@ -228,10 +232,10 @@ class TestNullThreshold:
         
         self.assert_null_data(ref_data, obs_null)
         
-    @pytest.mark.parametrize('n_iters', [25, 101, 1001])
-    @pytest.mark.parametrize('stat_size', [10, 100, 1000])
-    @pytest.mark.parametrize('mask_cutoff', [0.23, 0.55, 0.77])
-    @pytest.mark.parametrize('which_tail', ['upper', 'lower'])        
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('stat_size', stat_size_param)
+    @pytest.mark.parametrize('mask_cutoff', mask_cutoff_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)        
     def test_max_stat_null(self, n_iters, stat_size, mask_cutoff, which_tail,
                             fxt_ref_observed, fxt_ref_null):
         logger.debug(f"Running TestNullThreshold().test_max_stat_null()")

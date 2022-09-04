@@ -110,6 +110,7 @@ def perm_signflip(x: np.ndarray,
     x must be an array with shape (n_features x n_samples)
     """
     assert isinstance(x, np.ndarray), print(f"x was type '{type(x)}', but should be np.ndarray")
+    assert x.ndim == 2 and x.shape[0] > 1, print(f"x was shape {x.shape}, but must have 2 dimensions and x.shape[0] (n_features) > 1")
     assert isinstance(stat_func, type(lambda x:'')), f"stat_func was type '{type(stat_func)}', but should be a function object"
     assert tail in valid_tail_args, print(f"tail was '{tail}', but must be {valid_tail_args}")
     assert type(apply_threshold)==bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
