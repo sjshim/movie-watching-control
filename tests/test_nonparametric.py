@@ -51,7 +51,7 @@ def ref_null(data, stat_mask, n_iters=25, alpha=0.05, null_type='full', tail='up
     assert isinstance(alpha, float), f"alpha was type '{type(alpha)}', but must be an float"
     assert null_type in ['full', 'max_stat'], f"null_type was '{null_type}', but must be 'full' or 'max_stat'"
     
-    logger.debug(f"Setting up ref_null()")
+    logger.debug(f"Setting up ref_null(n_iters={n_iters}, alpha={alpha}, null_type={null_type}, tail={tail})")
     
     # if size is not None:
     #     n_iters = size[0]
@@ -79,7 +79,24 @@ def ref_null(data, stat_mask, n_iters=25, alpha=0.05, null_type='full', tail='up
             np.where(stat_mask==True, null_true, null_true), null_ct,
             axis=0)
         logger.debug(f"null:\n{null}")
-        # logger.debug(f"null.sum(axs=0)={null.sum(axis=0)}")
+
+    elif null_type == 'max_stat':
+        sig_vals = data[stat_mask]
+        nonsig_vals = data[~stat_mask]
+        if tail == 'upper':
+            extreme_null_true = sig_vals.max() + 1
+            extreme_null_false = (sig_vals.min() + nonsig_vals.max()) / 2
+        elif tail == 'lower':
+            extreme_null_true = sig_vals.min() - 1
+            extreme_null_false = (sig_vals.max() + nonsig_vals.min()) / 2
+        logger.debug(f"\nextreme_null_true={extreme_null_true}\nextreme_null_false={extreme_null_false}")
+
+        null = np.full(shape=(n_iters, len(data)), fill_value=extreme_null_false)
+        null[:null_ct] = np.repeat(
+            np.repeat(extreme_null_true, len(data))[None,:], 
+            null_ct, axis=0)
+        logger.debug(f"null:\n{null}")
+
     return null
 
 
@@ -189,7 +206,8 @@ class TestNullThreshold:
     @pytest.mark.parametrize('stat_size', [10, 100, 1000])
     @pytest.mark.parametrize('mask_cutoff', [0.23, 0.55, 0.77])
     @pytest.mark.parametrize('which_tail', ['upper', 'lower'])
-    def test_full_null(self, n_iters, stat_size, mask_cutoff, which_tail, fxt_ref_observed, fxt_ref_null):
+    def test_full_null(self, n_iters, stat_size, mask_cutoff, which_tail, 
+                        fxt_ref_observed, fxt_ref_null):
         """
         Check that function works with a range of null_distribution iterations,
         stat data size, significant values, and test tails.
@@ -207,8 +225,33 @@ class TestNullThreshold:
         ref_null = fxt_ref_null(stats, stat_mask, n_iters, alpha=alpha, tail=which_tail)
 
         return_args = self.return_args
-        obs_null = {arg:null_threshold(ref_data['data'], ref_null, tail=which_tail, return_type=arg) for arg in return_args}
+        obs_null = {arg:null_threshold(ref_data['data'], ref_null, tail=which_tail, return_type=arg) 
+                    for arg in return_args}
         
+        self.assert_null_data(ref_data, obs_null)
+        
+    @pytest.mark.parametrize('n_iters', [25, 101, 1001])
+    @pytest.mark.parametrize('stat_size', [10, 100, 1000])
+    @pytest.mark.parametrize('mask_cutoff', [0.23, 0.55, 0.77])
+    @pytest.mark.parametrize('which_tail', ['upper', 'lower'])        
+    def test_max_stat_null(self, n_iters, stat_size, mask_cutoff, which_tail,
+                            fxt_ref_observed, fxt_ref_null):
+        logger.debug(f"Running TestNullThreshold().test_max_stat_null()")
+        n_iters = n_iters
+        alpha = 0.05
+        rng = np.random.default_rng(seed=100)
+        stats = rng.normal(size=(stat_size))
+        stat_mask = compare_func(stats, mask_cutoff, which_tail)
+
+        ref_data = fxt_ref_observed(stats, stat_mask, n_iters=n_iters, alpha=alpha)
+        ref_null = fxt_ref_null(stats, stat_mask, n_iters, alpha=alpha, 
+                                tail=which_tail, null_type='max_stat')
+
+        return_args = self.return_args.copy()
+        return_args.remove('null_mask')
+        obs_null = {arg:null_threshold(ref_data['data'], ref_null, tail=which_tail, max_stat=True, return_type=arg)
+                    for arg in return_args}
+
         self.assert_null_data(ref_data, obs_null)
 
     @pytest.mark.parametrize('data, null, expectation',[

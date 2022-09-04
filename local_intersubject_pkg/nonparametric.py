@@ -38,6 +38,8 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
     if max_stat not in [True, False]: raise ValueError(f"max_stat was '{max_stat}', but must be either True or False")
     if return_type not in ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask']: raise ValueError(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
     if max_stat == True and return_type == 'null_mask': raise ValueError(f"max_stat cannot be used with return_type='null_mask")
+    logger.debug(f"Running null_threshold()")
+
     if null_dist.ndim == 1:
         null_dist = null_dist[None, :]
     compare_func = {
@@ -57,18 +59,23 @@ def null_threshold(observed, null_dist, alpha=0.05, tail='upper', max_stat=False
         else:
             out = operator(null_dist, observed)
             if return_type == 'null_mask':
+                logger.debug(f"return_type=={return_type}\n{out}")
                 return out
             out = out.sum(axis=0)
 
         if return_type == 'null_ct':
+            logger.debug(f"return_type=={return_type}\n{out}")
             return out
         out = out / null_dist.shape[0]
         if return_type == 'pvals':
+            logger.debug(f"return_type=={return_type}\n{out}")
             return out
         out = out < alpha
         if return_type == 'stat_mask':
+            logger.debug(f"return_type=={return_type}\n{out}")
             return out
         out = np.where(out==True, observed, np.nan)
+        logger.debug(f"return_type=={return_type}\n{out}")
         return out
 
     except BaseException as err:
