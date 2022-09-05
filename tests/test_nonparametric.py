@@ -1,15 +1,19 @@
 # test_nonparametric.py
 
 import logging
+import time
 import pytest
 from contextlib import nullcontext as does_not_raise
 
 import numpy as np
 import numpy.testing as np_test
+from scipy.stats import truncnorm
 
-from local_intersubject_pkg.nonparametric import null_threshold
+from local_intersubject_pkg.nonparametric import null_threshold, perm_signflip
 
 logger = logging.getLogger(__name__)
+
+which_tail_param = ['upper', 'lower']
 
 def compare_func(d, n, tail):
     if tail=='upper':
@@ -150,6 +154,47 @@ def fxt_ref_simple_observed():
     return ref_simple_observed
 
 
+def ref_subject_stats(null_lohi=(-0.3, 0.3), sig_lohi=(0.31, 0.9), shape=(100, 1000), 
+                    n_sig_embed=0.10, tail='upper', random_seed=None):
+    assert type(null_lohi)==tuple and type(sig_lohi)==tuple and type(shape)==tuple, \
+        print(f"Both null_lohi, sig_lohi, and shape must be tuples, but instead were type '{type(null_lohi)}', '{type(sig_lohi)}', and '{type(shape)}'")
+    assert type(shape[0])==int and type(shape[1])==int, f"shape must be a tuple of integers, but you provided {shape}"
+    # assert type(n_subjects)==int, f"n_subjects was type '{type(n_subjects)}', but must be an int"
+    # assert type(n_stats)==int, f"n_stats was type '{type(n_stats)}', but must be an int"
+    assert isinstance(n_sig_embed, (int, float)), \
+        f"n_sig_embed was type '{type(n_sig_embed)}', but must be an int or float"
+    assert tail in which_tail_param, f"tail was '{tail}', but must be in {which_tail_param}"
+
+    n_subjects = shape[0]
+    n_stats = shape[1]
+    if type(n_sig_embed) == float:
+        n_sig_embed = np.round(n_sig_embed * n_stats).astype(int)
+    assert n_sig_embed < n_stats, \
+        f"n_sig_embed ({n_sig_embed}) must be smaller than n_stats ({n_stats})"
+    # logger.debug(f"n_sig_embed={n_sig_embed}")
+    if tail == 'lower': # reverse numbers if lower tail
+        sig_lohi = (-sig_lohi[1], -sig_lohi[0])
+
+    rng = np.random.default_rng(random_seed)
+    stats = truncnorm.rvs(null_lohi[0], null_lohi[1], size=(n_subjects, n_stats),
+                            random_state=rng)
+    # logger.debug(f"stats with null={stats}")
+    stats[:, : n_sig_embed] = truncnorm.rvs(sig_lohi[0], sig_lohi[1], 
+                            size=(n_subjects, n_sig_embed), random_state=rng)
+    # logger.debug(f"stats with sig embed={stats}")
+    return stats
+
+
+@pytest.fixture
+def fxt_ref_subject_stats():
+    return ref_subject_stats
+
+
+# =============
+# ====Tests====
+# =============
+
+
 class TestNullThreshold:
     """
     Tests for local_intersubject_pkg.nonparametric.null_threshold()
@@ -159,7 +204,6 @@ class TestNullThreshold:
     n_iters_param = [25, 101, 1001]
     stat_size_param = [10, 100, 1000]
     mask_cutoff_param = [0.23, 0.55, 0.77]
-    which_tail_param = ['upper', 'lower']
 
     def assert_null_data(self, ref_data, obs_null):
         assert type(ref_data)==dict and type(obs_null)==dict, \
@@ -270,10 +314,81 @@ class TestNullThreshold:
         """
         with expectation:
             assert null_threshold(data, null) is not None
-            
 
 
-
+class TestPermSignflip:
+    n_iters_param = [1000]
+    n_subs_and_stats_param = [
+        (100, 1000),
+        (300, 1000),
+        (500, 10_000)
+    ]
+    sig_prop_param = [0.10, 0.50]
+    
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('n_subs,n_stats', n_subs_and_stats_param)
+    @pytest.mark.parametrize('sig_prop', sig_prop_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)
+    def test_full_null(self, n_iters, n_subs, n_stats, sig_prop, which_tail,
+                        fxt_ref_subject_stats):
+        logger.debug(f"Running TestPermSignflip().test_full_null()")
         
+        # Setup test data
+        alpha = 0.05
+        stats = fxt_ref_subject_stats(shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    tail=which_tail, random_seed=0)
 
+        # Run permutation test and get thresholded data
+        n_jobs = -4
+        tic = time.time()
+        perm_results = perm_signflip(stats, n_iter=n_iters, tail=which_tail,
+                                    apply_threshold=True, n_jobs=n_jobs,
+                                    threshold_kwargs={'alpha':alpha})
+        toc = time.time()
 
+        logger.debug(f"perm_signflip 'full' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        perm_n_sig = (~np.isnan(perm_results)).sum()
+        logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
+        
+        expected_sig_embed = np.round(sig_prop*n_stats).astype(int)
+        expected_null = (alpha * n_stats)
+
+        logger.debug(f"expected sig embed={expected_sig_embed}")
+        logger.debug(f"expected null={expected_null}")
+        logger.debug(f"perm_n_sig minus expected null={perm_n_sig - expected_null}")
+        logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
+        assert expected_null >= perm_n_sig - expected_sig_embed
+        assert expected_sig_embed >= perm_n_sig - expected_null
+
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('n_subs,n_stats', n_subs_and_stats_param)
+    @pytest.mark.parametrize('sig_prop', sig_prop_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)
+    def test_max_stat_null(self, n_iters, n_subs, n_stats, sig_prop, which_tail,
+                            fxt_ref_subject_stats):
+        logger.debug(f"Running TestPermSignflip().test_max_stat_null()")
+
+        alpha = 0.05
+        stats = fxt_ref_subject_stats(shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    tail=which_tail, random_seed=0)
+
+        n_jobs = -4
+        tic = time.time()
+        perm_results = perm_signflip(stats, n_iter=n_iters, tail=which_tail,
+                                    apply_threshold=True, n_jobs=n_jobs,
+                                    threshold_kwargs={'alpha':alpha, 'max_stat':True})
+        toc = time.time()
+
+        logger.debug(f"perm_signflip 'max_stat' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        perm_n_sig = (~np.isnan(perm_results)).sum()
+        logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
+        
+        expected_sig_embed = np.round(sig_prop*n_stats).astype(int)
+        expected_null = (alpha * n_stats)
+
+        logger.debug(f"expected sig embed={expected_sig_embed}")
+        logger.debug(f"expected null={expected_null}")
+        logger.debug(f"perm_n_sig minus expected null={perm_n_sig - expected_null}")
+        logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
+        assert expected_null >= perm_n_sig - expected_sig_embed
+        assert expected_sig_embed >= perm_n_sig - expected_null

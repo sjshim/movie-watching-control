@@ -111,7 +111,7 @@ def perm_signflip(x: np.ndarray,
     """
     assert isinstance(x, np.ndarray), print(f"x was type '{type(x)}', but should be np.ndarray")
     assert x.ndim == 2 and x.shape[0] > 1, print(f"x was shape {x.shape}, but must have 2 dimensions and x.shape[0] (n_features) > 1")
-    assert isinstance(stat_func, type(lambda x:'')), f"stat_func was type '{type(stat_func)}', but should be a function object"
+    assert isinstance(stat_func, (type(lambda x:''), type(partial(abs)))), f"stat_func was type '{type(stat_func)}', but should be a function object or {type(partial(abs))}"
     assert tail in valid_tail_args, print(f"tail was '{tail}', but must be {valid_tail_args}")
     assert type(apply_threshold)==bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
     assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
@@ -134,9 +134,9 @@ def perm_signflip(x: np.ndarray,
         return stat_func(x*sign_flip)
     
     if n_jobs not in (1, None):
-        null_dist = Parallel(n_jobs=n_jobs, **joblib_kwargs)\
-                        (delayed(flip_and_compute)(x, seed=i)
-                        for i in range(n_iter))
+        with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
+            null_dist = parallel(delayed(flip_and_compute)(x, seed=i)
+                                for i in range(n_iter))
     else:
         null_dist = []
         for i in range(n_iter):
