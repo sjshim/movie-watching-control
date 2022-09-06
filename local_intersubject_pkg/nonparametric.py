@@ -100,6 +100,7 @@ def perm_signflip(x: np.ndarray,
                 apply_threshold: bool = False, 
                 threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False},
                 n_jobs=None,
+                seed=None,
                 joblib_kwargs={}) -> np.ndarray:
     """
     Perform a signflip permutation test on observed statistical results
@@ -119,28 +120,20 @@ def perm_signflip(x: np.ndarray,
     assert isinstance(n_jobs, (type(None), int)), f"n_jobs was type '{type(n_jobs)}', but must be None or an int"
     assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
 
-#     if avg_kind == 'mean':
-#         avg = partial(np.mean, axis=0)
-#     elif avg_kind == 'median':
-#         avg = partial(np.median, axis=0)
-    
+    rng = np.random.default_rng(seed=seed)
     def flip_and_compute(x, seed=None):
-#         if seed:
-# #             np.random.seed(seed)
         this_rng = np.random.default_rng(seed)
-#         print(seed)
-#         print(this_rng)
         sign_flip = this_rng.choice([-1, 1], size=(x.shape[0]))[:,np.newaxis]
         return stat_func(x*sign_flip)
     
     if n_jobs not in (1, None):
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
-            null_dist = parallel(delayed(flip_and_compute)(x, seed=i)
-                                for i in range(n_iter))
+            null_dist = parallel(delayed(flip_and_compute)(x, seed=rng.integers(0,n_iter))
+                                for _ in range(n_iter))
     else:
         null_dist = []
-        for i in range(n_iter):
-            null_dist.append(flip_and_compute(x, seed=i))
+        for _ in range(n_iter):
+            null_dist.append(flip_and_compute(x, seed=rng.integers(0,n_iter)))
             
     null_dist = np.array(null_dist)
     if apply_threshold:

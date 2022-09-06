@@ -1,5 +1,6 @@
 # test_nonparametric.py
 
+from functools import partial
 import logging
 import time
 import pytest
@@ -317,7 +318,10 @@ class TestNullThreshold:
 
 
 class TestPermSignflip:
-    n_iters_param = [1000]
+    n_iters_param = [
+        # 100,
+        1000
+        ]
     n_subs_and_stats_param = [
         (100, 1000),
         (300, 1000),
@@ -392,3 +396,25 @@ class TestPermSignflip:
         logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
         assert expected_null >= perm_n_sig - expected_sig_embed
         assert expected_sig_embed >= perm_n_sig - expected_null
+
+    @pytest.mark.parametrize('n_jobs', [1, 5, -4])
+    def test_parallel_equality(self, n_jobs, fxt_ref_subject_stats):
+        logger.debug(f"Running TestPermSignflip().test_parallel_equality()")
+        stats = fxt_ref_subject_stats(shape=(200, 5000), n_sig_embed=0.10, random_seed=0)
+
+        n_iters = 50
+        seed = 0
+        stat_func = partial(np.mean, axis=0)
+        loop_perm = perm_signflip(stats, stat_func=stat_func, n_iter=n_iters, seed=seed)
+        pll_perm = perm_signflip(stats, stat_func=stat_func, n_iter=n_iters, seed=seed, n_jobs=n_jobs)
+        np_test.assert_array_almost_equal(loop_perm, pll_perm)
+
+        loop_thresh = null_threshold(stat_func(stats), loop_perm)
+        pll_thresh = null_threshold(stat_func(stats), loop_perm)
+        logger.debug(f"avg diff between loop and pll thresh results={np.nanmean(loop_thresh-pll_thresh):.4f}")
+        np_test.assert_array_almost_equal(loop_thresh, pll_thresh)
+
+
+if __name__ == "__main__":
+    TestNullThreshold()
+    TestPermSignflip()
