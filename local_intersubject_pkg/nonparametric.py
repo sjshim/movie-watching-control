@@ -131,7 +131,10 @@ def null_threshold(observed : np.ndarray,
     try:
         # Obtain max stat distribution then threshold observed data 
         if max_stat:
-            null_dist = np.nanmax(null_dist, axis=1)
+            if tail=='upper':
+                null_dist = np.nanmax(null_dist, axis=1)
+            elif tail=='lower':
+                null_dist = np.nanmin(null_dist, axis=1)
             out = np.array([operator(null_dist, observed[i]).sum() for i in range(observed.shape[0])])
 
         # Directly threshold observed data using provided null distribution
@@ -169,9 +172,9 @@ def perm_signflip(x: np.ndarray,
                 apply_threshold: bool = False,
                 tail: str = 'upper', 
                 threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False},
-                n_jobs=None,
-                seed=None,
-                joblib_kwargs={}) -> np.ndarray:
+                n_jobs: int = None,
+                seed: int = None,
+                joblib_kwargs: dict = {}) -> np.ndarray:
     """
     Perform a signflip permutation test on observed statistical results
     The positive/negative sign for the data from a random subset of subjects,
@@ -184,10 +187,10 @@ def perm_signflip(x: np.ndarray,
     ---------
     x : np.ndarray
         The n_samples x n_features input data to apply sign-flipping onto in order
-        to generate a null distribtion.
+        to generate a null distribution.
 
     stat_func : callable object, default=partial(np.mean, axis=1)
-        The function that is applied to x after sign-flipping; this functions
+        The function that is applied to x after sign-flipping; this function's
         results are stored in the final null distribution list.
 
         By default, x.mean(axis=1) is called to get the average n_samples
@@ -206,7 +209,7 @@ def perm_signflip(x: np.ndarray,
     assert isinstance(x, np.ndarray), print(f"x was type '{type(x)}', but should be np.ndarray")
     assert x.ndim == 2 and x.shape[1] > 1, print(f"x was shape {x.shape}, but must have 2 dimensions and x.shape[1] (n_features) > 1")
     assert callable(stat_func), f"stat_func {stat_func} was type '{type(stat_func)}', but should be a callable object (eg., function or method)"
-    assert tail in valid_tail_args, print(f"tail was '{tail}', but must be {valid_tail_args}")
+    assert tail in valid_tail_args, f"tail was '{tail}', but must be {valid_tail_args}"
     assert type(apply_threshold)==bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
     assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
         f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
@@ -223,7 +226,7 @@ def perm_signflip(x: np.ndarray,
         sign_flip = this_rng.choice([-1, 1], size=(x.shape[1]))
         return stat_func(x*sign_flip)
     
-    if n_jobs not in (1, None):
+    if n_jobs is not None:
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
             null_dist = parallel(delayed(flip_and_compute)(seed=rng.integers(0,n_iter))
                                 for _ in range(n_iter))
@@ -234,21 +237,24 @@ def perm_signflip(x: np.ndarray,
             
     null_dist = np.array(null_dist)
     if apply_threshold:
-        return null_threshold(stat_func(x), null_dist, **threshold_kwargs)
+        return null_threshold(stat_func(x), null_dist, 
+                                tail=tail, **threshold_kwargs)
     else:
         return null_dist
 
 
-def perm_grouplabel(x1, x2, stat_func, 
-                    n_iter=100,  
-                    avg_kind='mean', 
-                    apply_threshold=False, 
-                    tail='upper',
-                    threshold_kwargs={'alpha':0.05, 'max_stat':False}, 
-                    n_jobs=None, 
-                    seed=None,
-                    memmap_dir=None,
-                    joblib_kwargs={}):
+def perm_grouplabel(x1: np.ndarray, 
+                    x2: np.ndarray, 
+                    stat_func, 
+                    n_iter: int = 100,  
+                    avg_kind: str = 'mean', 
+                    apply_threshold: bool = False, 
+                    tail: str = 'upper',
+                    threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False}, 
+                    n_jobs: int = None, 
+                    seed: int = None,
+                    # memmap_dir=None,
+                    joblib_kwargs: dict = {}) -> np.ndarray:
     """
     Perform group label permutation test. 
     
@@ -256,18 +262,41 @@ def perm_grouplabel(x1, x2, stat_func,
     function is computed on the new groups; this is performed n_iter times
     and the null distribution of statistics is returned.
 
-    x1 and x2 dimension should represent (n )
+    x1 and x2 dimension should represent (n_samples, n_features)
+
+    Parameters
+    ----------
+    x1, x2 : np.ndarray
+        Two groups of n_samples x n_features input data to apply group label
+        shuffling onto to generate a null distribution.
+
+        x1 and x2 n_samples must be equal, but can have different n_features.
+
+    stat_func : callable object
+        A function that is applied onto x1 and x2 after group label shuffling;
+        this function's results are stored in the final null distribution list.
+
+    n_iter : int, default=100
+        The numbger of iterations to perform group label shuffling permutations
+        for.
+
+        n_iter is 100 by default, but at least 1000 is probably sufficient.
+
+    Returns
+    -------
+    null distribution, shape=(n_iterations, n_sample_stats)
     """
     assert isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray), \
         print(f"Both x1 and x2 must be type np.ndarray, but instead were '{type(x1)}' and '{type(x2)}'")
-    # assert isinstance(stat_func, type(lambda x:'')), print(f"stat_func was type '{type(stat_func)}', but must be a function object")
+    assert x1.shape[0] == x2.shape[0], f"x1.shape[0] and x2.shape[0] must be equal, but were {x1.shape} and {x2.shape} instead"
+    assert callable(stat_func), f"stat_func {stat_func} was type '{type(stat_func)}', but should be a callable object (eg., function or method)"
     assert tail in valid_tail_args, f"tail was '{tail}', but must be {valid_tail_args}"
     assert avg_kind in ['mean', 'median'], print(f"avg_kind must be 'mean' or 'median'")
     assert type(apply_threshold) == bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
     assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
             f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
     assert isinstance(n_jobs, (type(None), int)), print(f"n_jobs was type '{type(n_jobs)}', but must be None or an int")
-    assert isinstance(memmap_dir, (type(None), str, Path)), print(f"memmap_dir was type '{type(memmap_dir)}', but must either be None or path-like (str or pathlib.Path)")
+    # assert isinstance(memmap_dir, (type(None), str, Path)), print(f"memmap_dir was type '{type(memmap_dir)}', but must either be None or path-like (str or pathlib.Path)")
     assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
     
     rng = np.random.default_rng(seed=seed)
@@ -280,14 +309,7 @@ def perm_grouplabel(x1, x2, stat_func,
         del c
         return stat_func(a, b)
     
-    if n_jobs not in (1, None):
-        # if memmap_dir:
-        #     x1_dir = os.path.join(memmap_dir, 'group1')
-        #     x2_dir = os.path.join(memmap_dir, 'group2')
-        #     dump(x1, x1_dir)
-        #     dump(x2, x2_dir)
-        #     x1 = load(x1_dir, mmap_mode='r')
-        #     x2 = load(x2_dir, mmap_mode='r')
+    if n_jobs is not None:
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
             null_dist = parallel(delayed(shuffle_and_compute)(x1, x2, seed=rng.integers(0,n_iter))
                                 for _ in range(n_iter))
@@ -298,14 +320,16 @@ def perm_grouplabel(x1, x2, stat_func,
     
     null_dist = np.array(null_dist)
     if apply_threshold:
-        return null_threshold(stat_func(x1, x2), null_dist, **threshold_kwargs)
+        return null_threshold(stat_func(x1, x2), null_dist, 
+                                tail=tail, **threshold_kwargs)
     else:
         return null_dist
 
 
-def perm_mantel(x1, x2, tri_func='spearman', 
+def perm_mantel(x_n, x_b, tri_func='spearman', 
                 n_iter=100, 
                 apply_threshold=False,
+                tail='upper',
                 threshold_kwargs={'alpha':0.05, 'max_stat':False},
                 n_jobs=None, 
                 joblib_kwargs={}):
@@ -315,11 +339,41 @@ def perm_mantel(x1, x2, tri_func='spearman',
     between two pairwise matrices' upper triangles. The test is performed by
     randomly shuffling the rows and columns of one of the two matrices, then
     correlation the two triangles over n iterations.
+
+    Parameters
+    ----------
+    x_n : np.ndarray
+        Subject-pairwise ISC data. Shape=(n_regions, n_subject_pairs)
+
+    x_b : np.ndarray
+        Subject-pairwise behavioral data. Shape=(n_subject_pairs,)
+
+    tri_func : callable, str, or None, default='spearman'
+        The method to compare subject pairs of x_n and x_b. 
+
+    apply_threshold : bool, default=True
+        Choose to apply null_threshold() to data. If false, then
+        null distribution is returned as-is.
+
+    tail : str, default='upper'
+        Choose which side of the null distribution is tested if
+        apply_threshold=True. 
+
+        Options: 'upper', 'lower', or 'both'
+
+    Returns
+    -------
+    null distribution, shape=(n_iterations, n_sample_stats)
     """
-    assert isinstance(x1, np.ndarray) and isinstance(x2, np.ndarray), \
-        print(f"Both x1 and x2 must be type np.ndarray, but instead were '{type(x1)}' and '{type(x2)}'")
-    assert type(tri_func)==type(lambda _:'') or tri_func in ['spearman', 'pearson', None], \
-        print(f"tri_func was '{tri_func}', but must either be a function object, or 'spearman', 'pearson', or None")
+    assert isinstance(x_n, np.ndarray) and isinstance(x_b, np.ndarray), \
+        print(f"Both x_n and x_b must be type np.ndarray, but instead were '{type(x_n)}' and '{type(x_n)}'")
+    assert x_n.ndim<=2, f"x_n neural pwise data should be <= 2 dimensions, but was {x_n.ndim} instead"
+    assert x_b.ndim==1, f"x_b behavioral pwise data should be 1-d, but was {x_b.ndim} instead"
+    assert x_n.shape[1] == x_b.shape[0], f"x_n.shape[1] and x_b.shape[0] n_subject_pairs dimension should be equal, but were {x_n.shape} and {x_b.shape} instead"
+    assert callable(tri_func) or tri_func in ['spearman', 'pearson', None], \
+        print(f"tri_func was '{tri_func}', but must either be a callabe object, 'spearman', 'pearson', or None (which defaults to 'spearman'")
+    assert type(n_iter)==int, f"n_iter was type '{type(n_iter)}', but should be int"
+    assert tail in valid_tail_args, f"tail was '{tail}', but must be be {valid_tail_args}"
     assert type(apply_threshold) == bool, print(f"apply_threshold was type '{type(apply_threshold)}', but must be bool")
     assert set(threshold_kwargs).issubset(valid_null_threshold_kwargs), \
             f"threshold_kwargs keys were {list(threshold_kwargs)}, but they must contain some or all of {valid_null_threshold_kwargs}"
@@ -338,17 +392,18 @@ def perm_mantel(x1, x2, tri_func='spearman',
         rng.shuffle(b)
         return tri_func(a, b)
     
-    if n_jobs in (1, None):
-        null_dist = Parallel(n_jobs=n_jobs, **joblib_kwargs)\
-                    (delayed(shuffle_and_tri_func)(x1, x2, seed=i)
-                    for i in range(n_iter))
+    if n_jobs is not None:
+        with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
+            null_dist = parallel(delayed(shuffle_and_tri_func)(x_n, x_b, seed=i)
+                                for i in range(n_iter))
     else:
         null_dist = []
         for i in range(n_iter):
-            null_dist.append(shuffle_and_tri_func(x1, x2, seed=i))
+            null_dist.append(shuffle_and_tri_func(x_n, x_b, seed=i))
     null_dist = np.array(null_dist)
     
     if apply_threshold:
-        return null_threshold(tri_func(x1, x2), null_dist, **threshold_kwargs)
+        return null_threshold(tri_func(x_n, x_b), null_dist, 
+                                tail=tail, **threshold_kwargs)
     else:
         return null_dist

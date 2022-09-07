@@ -22,7 +22,11 @@ logger = logging.getLogger(__name__)
 # ===================
 
 
-def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs=None):
+def isc(data, pairwise=False, 
+        summary_statistic=None, 
+        tolerate_nans=True, 
+        n_jobs=None,
+        joblib_kwargs={}):
     """
     Calculate leave-one-out (loo-ISC) or pairwise ISC.
         loo-ISC: for each brain region, correlate the subject i's timeseries
@@ -96,10 +100,10 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
         pairwise_corr = lambda x: squareform(np.corrcoef(x), checks=False)
 
         # Loop through voxels
-        if n_jobs in (1, None):
-            voxel_iscs = Parallel(n_jobs=n_jobs)\
-                            (delayed(pairwise_corr)(data[:,v,:])
-                            for v in range(data.shape[1]))
+        if n_jobs is not None:
+            with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
+                voxel_iscs = parallel(delayed(pairwise_corr)(data[:,v,:])
+                                    for v in range(data.shape[1]))
         else:
             voxel_iscs = []
             for v in np.arange(data.shape[1]):
@@ -116,10 +120,10 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
         loo_corr = lambda x, s: array_correlation(
                                     x[...,s],
                                     mean(np.delete(x, s, axis=2), axis=2))
-        if n_jobs not in (1, None):
-            iscs_stack = Parallel(n_jobs=n_jobs)\
-                            (delayed(loo_corr)(data, s)
-                            for s in range(n_subjects))
+        if n_jobs is not None:
+            with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
+                iscs_stack = parallel(delayed(loo_corr)(data, s)
+                                    for s in range(n_subjects))
         else:
             iscs_stack = [loo_corr(data, s) for s in range(n_subjects)]
             
@@ -145,7 +149,7 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
 
 
 def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None, 
-            tolerate_nans=True, n_jobs=None):
+            tolerate_nans=True, n_jobs=None, joblib_kwargs={}):
     """
     Compute within-minus-between ISC between two group of subjects' timeseries
     data. This is calculate for each subject by calculating within-group ISC
@@ -216,18 +220,18 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
     w_iscs_stack = []
     b_iscs_stack = []
     data_tup = (d1, d2)
-    for idx, d in enumerate(data_tup):
-        n_subjects = data_tup[idx].shape[-1]
-        if n_jobs not in (1, None):
-            w_iscs_stack += Parallel(n_jobs=n_jobs)\
-                             (delayed(loo_corr)(data_tup[idx], s)
-                             for s in range(n_subjects))
-            
-            b_iscs_stack += Parallel(n_jobs=n_jobs)\
-                              (delayed(one2avg_corr)(data_tup[idx][...,s], data_tup[idx-1])
-                              for s in range(n_subjects))
-            
-        else:
+    if n_jobs is not None:
+        with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
+            for idx, d in enumerate(data_tup):
+                n_subjects = data_tup[idx].shape[-1]
+                w_iscs_stack += parallel(delayed(loo_corr)(data_tup[idx], s)
+                                        for s in range(n_subjects))
+                b_iscs_stack += parallel(n_jobs=n_jobs)(delayed(one2avg_corr)(data_tup[idx][...,s], data_tup[idx-1])
+                                        for s in range(n_subjects))
+                    
+    else:
+        for idx, d in enumerate(data_tup):
+            n_subjects = data_tup[idx].shape[-1]
             for s in range(n_subjects):
                 w_iscs_stack.append(loo_corr(data_tup[idx], s))
                 
@@ -371,10 +375,10 @@ def timestamps_from_segments(n_segs, n_trs, TR, return_as="h:m:s"):
 # =======================
 
 
-def finn_isrsa(data=None, pwise_isc=None, 
+def finn_isrsa(neural_data=None, pwise_isc=None, 
                behav_data=None, pwise_behav=None, 
                pwise_func=None, tri_func=None, 
-               n_jobs=None, joblib_kw={}):   
+               n_jobs=None, joblib_kwargs={}):   
     """Calculate intersubject representational similarity analysis (IS-RSA) as
     described in Finn et al. (2020) [1].
     
@@ -386,6 +390,15 @@ def finn_isrsa(data=None, pwise_isc=None,
     responses to individual differences during naturalistic neuroimaging. 
     NeuroImage, 215, 116828.
     """
+    assert callable(tri_func) or tri_func in [None, 'spearman', 'pearson'], f"tri_func must either be a callable object, spearman, pearson, or None (which defaults to 'spearman')"
+    assert isinstance(n_jobs, (type(None), int)), f"n_jobs was type '{n_jobs}', but must be NoneType or int"
+    assert not (neural_data is None and pwise_isc is None), f"Either neural_data or pwise_isc must be provided; both cannot be None"
+    assert not (behav_data is None and pwise_behav is None), f"Either behav_data or pwise_behave must be provided; both cannot be None"
+    assert callable(pwise_func) or type(pwise_func)==str, f"pwise_func must either be a callable object (ie., function, method) or a str; it cannot be None"
+    # if pwise_isc is not None and pwise_behav is not None:
+    #     if  
+
+    logger.debug(f"Running finn_isrsa()")
 
     if tri_func == 'spearman':
         tri_func = lambda x1, x2: spearmanr(x1, x2)[0]
@@ -393,15 +406,15 @@ def finn_isrsa(data=None, pwise_isc=None,
         tri_func = lambda x1, x2: pearsonr(x1, x2)[0]
     
     if pwise_isc is None:
-        pwise_isc = isc(data, pairwise=True, n_jobs=n_jobs)
+        pwise_isc = isc(neural_data, pairwise=True, n_jobs=n_jobs)
     if pwise_behav is None:
         pwise_behav = pwise_func(behav_data)
     
-    if n_jobs in (1, None):
+    if n_jobs is not None:
         pwise_behav = tri2vect(pwise_behav)
-        isrsa_by_node = Parallel(n_jobs, **joblib_kw)\
-                        (delayed(tri_func)(pwise_isc[:,node_i], pwise_behav)
-                        for node_i in range(pwise_isc.shape[1]))
+        with Parallel(n_jobs, **joblib_kwargs) as parallel:
+            isrsa_by_node = parallel(delayed(tri_func)(pwise_isc[i], pwise_behav)
+                                        for i in range(pwise_isc.shape[0]))
         
     else:
         pwise_behav = tri2vect(pwise_behav)

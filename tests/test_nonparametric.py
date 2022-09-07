@@ -558,7 +558,7 @@ class TestPermGrouplabel:
 
         alpha = 0.05
         n_jobs = -2
-        mean_diff_func = lambda x, y: (x-y).mean(axis=0)
+        mean_diff_func = lambda x, y: (x-y).mean(axis=1)
 
         rng = np.random.default_rng(seed=100)
         d1 = fxt_ref_subject_stats(null_lohi=(-0.3,0.3), sig_lohi=(0.3,0.5), 
@@ -570,7 +570,7 @@ class TestPermGrouplabel:
         
         tic = time.time()
         perm_results = perm_grouplabel(d1, d2, mean_diff_func,
-                                    n_iter=1000, n_jobs=n_jobs, tail=which_tail,
+                                    n_iter=n_iters, n_jobs=n_jobs, tail=which_tail,
                                     apply_threshold=True,
                                     threshold_kwargs={'alpha':alpha})
         toc = time.time()
@@ -590,9 +590,49 @@ class TestPermGrouplabel:
         assert expected_null >= perm_n_sig - expected_sig_embed
         assert expected_sig_embed >= perm_n_sig - expected_null        
 
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('n_subs,n_stats', n_subs_and_stats_param)
+    @pytest.mark.parametrize('sig_prop', sig_prop_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)
+    def test_max_stat_null(self, n_iters, n_subs, n_stats, sig_prop, which_tail,
+                        fxt_ref_subject_stats):
         
+        alpha = 0.05
+        n_jobs = -2
+        mean_diff_func = lambda x, y: (x-y).mean(axis=1)
+
+        rng = np.random.default_rng(seed=100)
+        d1 = fxt_ref_subject_stats(null_lohi=(-0.3,0.3), sig_lohi=(0.3,0.5), 
+                                    shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    random_seed=rng.integers(0,10))
+        d2 = fxt_ref_subject_stats(null_lohi=(-0.3,0.3), sig_lohi=(0.0, 0.3),
+                                    shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    random_seed=rng.integers(0,10))
+
+        tic = time.time()
+        perm_results = perm_grouplabel(d1, d2, mean_diff_func,
+                                    n_iter=n_iters, n_jobs=n_jobs, tail=which_tail,
+                                    apply_threshold=True,
+                                    threshold_kwargs={'alpha':alpha, 'max_stat':True})
+        toc = time.time()
+
+        logger.debug(f"perm_grouplabel 'max_stat' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        logger.debug(f"perm results shape = {perm_results.shape}")
+        perm_n_sig = (~np.isnan(perm_results)).sum()
+        logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
+        
+        expected_sig_embed = np.round(sig_prop*n_stats).astype(int)
+        expected_null = (alpha * n_stats)
+        
+        logger.debug(f"expected sig embed={expected_sig_embed}")
+        logger.debug(f"expected null={expected_null}")
+        logger.debug(f"perm_n_sig minus expected null={perm_n_sig - expected_null}")
+        logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
+        assert expected_null >= perm_n_sig - expected_sig_embed
+        assert expected_sig_embed >= perm_n_sig - expected_null
 
 
 if __name__ == "__main__":
     TestNullThreshold()
     TestPermSignflip()
+    TestPermGrouplabel()
