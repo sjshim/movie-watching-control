@@ -3,7 +3,7 @@
 import numpy as np
 import logging
 import pytest
-from local_intersubject_pkg.intersubject import (finn_isrsa, isc)
+from local_intersubject_pkg.intersubject import isc, wmb_isc, finn_isrsa
 from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
@@ -212,6 +212,32 @@ class TestIsc:
         assert (np.sum(np.isnan(iscs_pw_T)) ==
                 np.sum(np.isnan(iscs_pw_F)) ==
                 n_subjects * (n_subjects - 1) / 2)
+
+
+class TestWmbIsc:
+    def test_basic(self, fxt_ref_high_pos_neg_corr):
+        seed = 0
+        n_samples = 1000
+        n_sig_embed = 5
+        base, pos, neg = fxt_ref_high_pos_neg_corr(n_samples, seed=seed)
+
+        rng = np.random.default_rng(seed)
+        d1 = rng.normal(size=(n_samples, 30, 5))
+        d2 = rng.normal(size=(n_samples, 30, 5))
+
+        for i in range(n_sig_embed):
+            d1[:,:n_sig_embed,i] = np.repeat(rng.normal(pos, scale=0.1)[None,:], n_sig_embed, axis=0).T
+            d2[:,:n_sig_embed,i] = np.repeat(rng.normal(neg, scale=0.1)[None,:], n_sig_embed, axis=0).T
+        
+        logger.debug(f"d1 shape = {d1.shape}")
+        logger.debug(f"d2 shape = {d2.shape}")
+
+        obs_wmb = wmb_isc(d1, d2,
+                        subtract_wmb=True,
+                        summary_statistic='mean')
+        logger.debug(f"obs wmb:\n{obs_wmb}")
+
+        assert obs_wmb[:n_sig_embed].mean() > 1.5
 
 
 class TestFinnIsrsa:

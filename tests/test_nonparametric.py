@@ -10,7 +10,7 @@ import numpy as np
 import numpy.testing as np_test
 from scipy.stats import truncnorm
 
-from local_intersubject_pkg.intersubject import finn_isrsa
+from local_intersubject_pkg.intersubject import wmb_isc, finn_isrsa
 from local_intersubject_pkg.nonparametric import (null_threshold, perm_signflip, 
                                                 perm_grouplabel, perm_mantel)
 
@@ -549,6 +549,39 @@ class TestPermGrouplabel:
         (500, 10_000)
     ]
     sig_prop_param = [0.10, 0.50]
+
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('max_stat', [False, True])
+    def test_wmb_isc(self, n_iters, max_stat, fxt_ref_high_pos_neg_corr):
+        n_jobs = -3
+        seed = 0
+        n_samples = 1000
+        n_sig_embed = 5
+        base, pos, neg = fxt_ref_high_pos_neg_corr(n_samples, seed=seed)
+
+        rng = np.random.default_rng(seed)
+        d1 = rng.normal(size=(n_samples, 30, 5))
+        d2 = rng.normal(size=(n_samples, 30, 5))
+
+        for i in range(n_sig_embed):
+            d1[:,:n_sig_embed,i] = np.repeat(rng.normal(pos, scale=0.1)[None,:], n_sig_embed, axis=0).T
+            d2[:,:n_sig_embed,i] = np.repeat(rng.normal(neg, scale=0.1)[None,:], n_sig_embed, axis=0).T
+        
+        logger.debug(f"d1 shape = {d1.shape}")
+        logger.debug(f"d2 shape = {d2.shape}")
+
+        wmb_subtract_mean = partial(wmb_isc, 
+                                subtract_wmb=True, 
+                                summary_statistic='mean')
+        obs_wmb_perm = perm_grouplabel(d1, d2, wmb_subtract_mean,
+                                    n_iter=n_iters,
+                                    apply_threshold=True,
+                                    threshold_kwargs={'max_stat':max_stat},
+                                    n_jobs=n_jobs)
+
+        logger.debug(f"obs wmb:\n{obs_wmb_perm}")
+
+        assert np.nanmean(obs_wmb_perm) > 1.5
 
     @pytest.mark.parametrize('n_iters', n_iters_param)
     @pytest.mark.parametrize('n_subs,n_stats', n_subs_and_stats_param)
