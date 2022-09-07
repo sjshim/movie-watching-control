@@ -3,7 +3,7 @@
 import numpy as np
 import logging
 import pytest
-from local_intersubject_pkg.intersubject import (isc)
+from local_intersubject_pkg.intersubject import (finn_isrsa, isc)
 from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
@@ -212,6 +212,42 @@ class TestIsc:
         assert (np.sum(np.isnan(iscs_pw_T)) ==
                 np.sum(np.isnan(iscs_pw_F)) ==
                 n_subjects * (n_subjects - 1) / 2)
+
+
+class TestFinnIsrsa:
+    def test_basic(self, fxt_ref_high_pos_neg_corr):
+        rng = np.random.default_rng(0)
+
+        size = (10, 1000)
+        sigma = 5
+        seed = 0
+        base, pos_behav, neg_behav = fxt_ref_high_pos_neg_corr(size[1], sigma, seed)
+        
+        data = rng.normal(size=size)
+        logger.debug(f"""
+        data shape={data.shape}
+        base shape={base.shape}
+        pos_behav shape={pos_behav.shape}
+        neg_behav shape={neg_behav.shape}
+        """)
+        data[0] = base
+
+        pos_isrsa = finn_isrsa(data, pos_behav)
+        neg_isrsa = finn_isrsa(data, neg_behav)
+
+        logger.debug(f"""
+        pos_isrsa,
+        idx=0 : {pos_isrsa[0]:.3f}
+        idx=2 : {pos_isrsa[2]:.3f}
+        """)
+        assert pos_isrsa[0] > 0.8 and pos_isrsa[2] < 0.8
+
+        logger.debug(f"""
+        neg_isrsa,
+        idx=0 : {neg_isrsa[0]:.3f}
+        idx=2 : {neg_isrsa[2]:.3f}
+        """)
+        assert neg_isrsa[0] < -0.8 and neg_isrsa[2] > -0.8
 
 
 if __name__ == '__main__':

@@ -370,7 +370,7 @@ def perm_mantel(x_n, x_b, tri_func='spearman',
         print(f"Both x_n and x_b must be type np.ndarray, but instead were '{type(x_n)}' and '{type(x_n)}'")
     assert x_n.ndim<=2, f"x_n neural pwise data should be <= 2 dimensions, but was {x_n.ndim} instead"
     assert x_b.ndim==1, f"x_b behavioral pwise data should be 1-d, but was {x_b.ndim} instead"
-    assert x_n.shape[1] == x_b.shape[0], f"x_n.shape[1] and x_b.shape[0] n_subject_pairs dimension should be equal, but were {x_n.shape} and {x_b.shape} instead"
+    assert x_n.shape[-1] == x_b.shape[0], f"x_n.shape[-1] and x_b.shape[0] n_subject_pairs dimension should be equal, but were {x_n.shape} and {x_b.shape} instead"
     assert callable(tri_func) or tri_func in ['spearman', 'pearson', None], \
         print(f"tri_func was '{tri_func}', but must either be a callabe object, 'spearman', 'pearson', or None (which defaults to 'spearman'")
     assert type(n_iter)==int, f"n_iter was type '{type(n_iter)}', but should be int"

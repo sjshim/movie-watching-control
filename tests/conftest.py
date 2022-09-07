@@ -5,6 +5,7 @@
 import pytest
 import numpy as np
 from scipy.spatial.distance import squareform
+from scipy.ndimage import gaussian_filter
 
 # Create simple simulated data with high intersubject correlation
 def simulated_timeseries(n_subjects, n_TRs, n_voxels=30,
@@ -64,3 +65,19 @@ def fxt_correlated_timeseries():
 def pytest_configure():
     pytest.simulated_timeseries = simulated_timeseries
     pytest.correlated_timeseries = correlated_timeseries
+
+
+def ref_high_pos_neg_corr(size, sigma=5, seed=None):
+    rng = np.random.default_rng(seed)
+    base = rng.normal(size=size)
+    base = gaussian_filter(base, sigma)
+
+    pos_corr = gaussian_filter(base, sigma)
+    neg_corr = pos_corr * -sigma
+
+    return base, pos_corr, neg_corr
+
+
+@pytest.fixture
+def fxt_ref_high_pos_neg_corr():
+    return ref_high_pos_neg_corr

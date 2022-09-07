@@ -10,8 +10,9 @@ import numpy as np
 import numpy.testing as np_test
 from scipy.stats import truncnorm
 
+from local_intersubject_pkg.intersubject import finn_isrsa
 from local_intersubject_pkg.nonparametric import (null_threshold, perm_signflip, 
-                                                perm_grouplabel)
+                                                perm_grouplabel, perm_mantel)
 
 logger = logging.getLogger(__name__)
 
@@ -668,8 +669,47 @@ class TestPermGrouplabel:
 
         np_test.assert_array_equal(ref_a, obs_a)
         np_test.assert_array_equal(ref_b, obs_b)
-        
 
+
+class TestPermMantel:
+
+    def test_full(self, fxt_ref_high_pos_neg_corr):
+        rng = np.random.default_rng(0)
+
+        n_iters = 1000
+        n_jobs = 5
+        size = (10, 1000)
+        sigma = 5
+        seed = 0
+        n_sig_embed = 4
+        base, pos_behav, neg_behav = fxt_ref_high_pos_neg_corr(size[1], sigma, seed)
+        
+        data = rng.normal(size=size)
+        
+        for i in range(n_sig_embed):
+            data[n_sig_embed] = rng.normal(base, scale=0.1)
+         
+        # pos_isrsa = finn_isrsa(data, pos_behav)
+        # neg_isrsa = finn_isrsa(data, neg_behav)
+
+        pos_isrsa_perm = perm_mantel(data, pos_behav,
+                                    tri_func=finn_isrsa,
+                                    n_iter=n_iters, n_jobs=n_jobs,
+                                    tail='upper',
+                                    apply_threshold=True)
+        neg_isrsa_perm = perm_mantel(data, neg_behav, 
+                                    tri_func=finn_isrsa,
+                                    n_iter=n_iters, n_jobs=n_jobs,
+                                    tail='lower',
+                                    apply_threshold=True)
+
+        logger.debug(f"""
+        pos isrsa perm = {pos_isrsa_perm}
+
+        neg isrsa perm = {neg_isrsa_perm}
+        """)
+        assert np.nanmean(pos_isrsa_perm) > 0.5
+        assert np.nanmean(neg_isrsa_perm) < -0.5
 
 
 if __name__ == "__main__":

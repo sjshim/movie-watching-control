@@ -397,6 +397,8 @@ def finn_isrsa(pwise_isc=None, pwise_behav=None,
     responses to individual differences during naturalistic neuroimaging. 
     NeuroImage, 215, 116828.
     """
+    assert pwise_isc.ndim == 2, f"pwise_isc ndim must be 2; you provided {pwise_isc.ndim}"
+    assert pwise_isc.shape[1] == len(pwise_behav), f"pwise_isc.shape[1] and len(pwise_behav) must be equal, but were {pwise_isc.shape} and {len(pwise_behav)} instead"
     assert callable(tri_func) or tri_func in [None, 'spearman', 'pearson'], f"tri_func must either be a callable object, spearman, pearson, or None (which defaults to 'spearman')"
     assert isinstance(n_jobs, (type(None), int)), f"n_jobs was type '{n_jobs}', but must be NoneType or int"
     assert not (neural_data is None and pwise_isc is None), f"Either neural_data or pwise_isc must be provided; both cannot be None"
