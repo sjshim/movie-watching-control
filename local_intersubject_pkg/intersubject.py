@@ -202,6 +202,11 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
         mean = np.nanmean
     else:
         mean = np.mean
+    if summary_statistic=='mean':
+        summary_statistic = np.nanmean
+    elif summary_statistic=='median':
+        summary_statistic = np.nanmedian
+
     d1_and_d2 = np.append(d1, d2, axis=-1)
     d1_and_d2, mask = _threshold_nans(d1_and_d2, tolerate_nans)
     d1 = d1_and_d2[..., : d1_n_subs]
@@ -245,23 +250,25 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
     between_isc = np.full((b_iscs_stack.shape[0], d1_n_voxels), np.nan)
     within_isc[:, np.where(mask)[0]] = w_iscs_stack
     between_isc[:, np.where(mask)[0]] = b_iscs_stack
-    
-    if summary_statistic:
-        iscs = compute_summary_statistic(iscs,
-                                         summary_statistic=summary_statistic,
-                                         axis=0)[np.newaxis, :]
 
-
+    wmb_iscs = np.array([within_isc, between_isc])
     if subtract_wmb:
         wmb_iscs = within_isc - between_isc
         if summary_statistic:
-            wmb_iscs = compute_summary_statistic(wmb_iscs,
-                                            summary_statistic=summary_statistic,
-                                            axis=0)[np.newaxis, :]
+            # wmb_iscs = compute_summary_statistic(wmb_iscs,
+            #                                 summary_statistic=summary_statistic,
+            #                                 axis=0)[np.newaxis, :].squeeze(axis=0)
+            wmb_iscs = summary_statistic(wmb_iscs, axis=0)
+            
         # return wmb_iscs
         return wmb_iscs.T
     else:
-        return np.array([within_isc, between_isc]).T
+        if summary_statistic:
+            # wmb_iscs = compute_summary_statistic(wmb_iscs,
+            #                                 summary_statistic=summary_statistic,
+            #                                 axis=1)[np.newaxis, :].squeeze(axis=0)
+            wmb_iscs = summary_statistic(wmb_iscs, axis=1)
+        return wmb_iscs.T
 
 # ===========================
 # Movie-segment ISC functions
@@ -375,8 +382,8 @@ def timestamps_from_segments(n_segs, n_trs, TR, return_as="h:m:s"):
 # =======================
 
 
-def finn_isrsa(neural_data=None, pwise_isc=None, 
-               behav_data=None, pwise_behav=None, 
+def finn_isrsa(pwise_isc=None, pwise_behav=None, 
+               neural_data=None, behav_data=None,
                pwise_func=None, tri_func=None, 
                n_jobs=None, joblib_kwargs={}):   
     """Calculate intersubject representational similarity analysis (IS-RSA) as
@@ -394,16 +401,18 @@ def finn_isrsa(neural_data=None, pwise_isc=None,
     assert isinstance(n_jobs, (type(None), int)), f"n_jobs was type '{n_jobs}', but must be NoneType or int"
     assert not (neural_data is None and pwise_isc is None), f"Either neural_data or pwise_isc must be provided; both cannot be None"
     assert not (behav_data is None and pwise_behav is None), f"Either behav_data or pwise_behave must be provided; both cannot be None"
-    assert callable(pwise_func) or type(pwise_func)==str, f"pwise_func must either be a callable object (ie., function, method) or a str; it cannot be None"
+    if pwise_behav is None:
+        assert callable(pwise_func) or type(pwise_func)==str, f"pwise_func must either be a callable object (ie., function, method) or a str; it cannot be None"
     # if pwise_isc is not None and pwise_behav is not None:
     #     if  
 
     logger.debug(f"Running finn_isrsa()")
 
-    if tri_func == 'spearman':
+    if tri_func in ['spearman', None]:
         tri_func = lambda x1, x2: spearmanr(x1, x2)[0]
     elif tri_func == 'pearson':
         tri_func = lambda x1, x2: pearsonr(x1, x2)[0]
+    
     
     if pwise_isc is None:
         pwise_isc = isc(neural_data, pairwise=True, n_jobs=n_jobs)
@@ -411,17 +420,17 @@ def finn_isrsa(neural_data=None, pwise_isc=None,
         pwise_behav = pwise_func(behav_data)
     
     if n_jobs is not None:
-        pwise_behav = tri2vect(pwise_behav)
+        # pwise_behav = tri2vect(pwise_behav)
         with Parallel(n_jobs, **joblib_kwargs) as parallel:
             isrsa_by_node = parallel(delayed(tri_func)(pwise_isc[i], pwise_behav)
                                         for i in range(pwise_isc.shape[0]))
         
     else:
-        pwise_behav = tri2vect(pwise_behav)
+        # pwise_behav = tri2vect(pwise_behav)
         isrsa_by_node = []
-        for node_i in range(pwise_isc.shape[1]): # assumes pwise_isc input is (n_pairs, n_nodes)
+        for i in range(pwise_isc.shape[0]): # assumes pwise_isc input is (n_pairs, n_nodes)
             isrsa_by_node.append(tri_func(
-                        pwise_isc[:, node_i], 
+                        pwise_isc[i], 
                         pwise_behav))
     
     return np.array(isrsa_by_node)

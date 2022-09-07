@@ -220,20 +220,20 @@ def perm_signflip(x: np.ndarray,
     # logger.debug(f"Using top level rng seed={seed} for {n_iter} iterations")
     
     rng = np.random.default_rng(seed=seed)
-    def flip_and_compute(seed=None):
-        this_rng = np.random.default_rng(seed)
+    def flip_and_compute(this_seed=None):
+        this_rng = np.random.default_rng(this_seed)
         # flip all stats for a random subset of features
         sign_flip = this_rng.choice([-1, 1], size=(x.shape[1]))
         return stat_func(x*sign_flip)
     
     if n_jobs is not None:
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
-            null_dist = parallel(delayed(flip_and_compute)(seed=rng.integers(0,n_iter))
+            null_dist = parallel(delayed(flip_and_compute)(this_seed=rng.integers(0,n_iter))
                                 for _ in range(n_iter))
     else:
         null_dist = []
         for _ in range(n_iter):
-            null_dist.append(flip_and_compute(seed=rng.integers(0,n_iter)))
+            null_dist.append(flip_and_compute(this_seed=rng.integers(0,n_iter)))
             
     null_dist = np.array(null_dist)
     if apply_threshold:
@@ -300,8 +300,8 @@ def perm_grouplabel(x1: np.ndarray,
     assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
     
     rng = np.random.default_rng(seed=seed)
-    def shuffle_and_compute(a, b, seed=None):
-        this_rng = np.random.default_rng(seed)
+    def shuffle_and_compute(a, b, this_seed=None):
+        this_rng = np.random.default_rng(this_seed)
         c = np.append(a, b, axis=1) # temporary fix for the transpose issue from my isc functions 
         this_rng.shuffle(c, axis=1)
         b = c[:, a.shape[1]: ] # same fix
@@ -311,12 +311,12 @@ def perm_grouplabel(x1: np.ndarray,
     
     if n_jobs is not None:
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
-            null_dist = parallel(delayed(shuffle_and_compute)(x1, x2, seed=rng.integers(0,n_iter))
+            null_dist = parallel(delayed(shuffle_and_compute)(x1, x2, this_seed=rng.integers(0,n_iter))
                                 for _ in range(n_iter))
     else:
         null_dist = []
         for _ in range(n_iter):
-            null_dist.append(shuffle_and_compute(x1, x2, seed=rng.integers(0,n_iter)))
+            null_dist.append(shuffle_and_compute(x1, x2, this_seed=rng.integers(0,n_iter)))
     
     null_dist = np.array(null_dist)
     if apply_threshold:
@@ -331,6 +331,7 @@ def perm_mantel(x_n, x_b, tri_func='spearman',
                 apply_threshold=False,
                 tail='upper',
                 threshold_kwargs={'alpha':0.05, 'max_stat':False},
+                seed = None,
                 n_jobs=None, 
                 joblib_kwargs={}):
 
@@ -380,26 +381,25 @@ def perm_mantel(x_n, x_b, tri_func='spearman',
     assert isinstance(n_jobs, (type(None), int)), print(f"n_jobs was type '{type(n_jobs)}', but must be None or an int")
     assert isinstance(joblib_kwargs, (type(None), dict)), print(f"joblib_kwargs was type '{type(joblib_kwargs)}', but must be None or a dict")
 
-    if tri_func == 'spearman':
+    if tri_func in ['spearman', None]:
         tri_func = spearmanr
     elif tri_func == 'pearson':
         tri_func = pearsonr
-    elif tri_func is None:
-        tri_func = spearmanr
     
-    def shuffle_and_tri_func(a, b, seed=None):
-        rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(seed)
+    def shuffle_and_tri_func(a, b, this_seed=None):
+        rng = np.random.default_rng(this_seed)
         rng.shuffle(b)
         return tri_func(a, b)
     
     if n_jobs is not None:
         with Parallel(n_jobs=n_jobs, **joblib_kwargs) as parallel:
-            null_dist = parallel(delayed(shuffle_and_tri_func)(x_n, x_b, seed=i)
+            null_dist = parallel(delayed(shuffle_and_tri_func)(x_n, x_b, this_seed=rng.integers(0,n_iter))
                                 for i in range(n_iter))
     else:
         null_dist = []
         for i in range(n_iter):
-            null_dist.append(shuffle_and_tri_func(x_n, x_b, seed=i))
+            null_dist.append(shuffle_and_tri_func(x_n, x_b, this_seed=rng.integers(0,n_iter)))
     null_dist = np.array(null_dist)
     
     if apply_threshold:

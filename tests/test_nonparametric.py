@@ -631,6 +631,46 @@ class TestPermGrouplabel:
         assert expected_null >= perm_n_sig - expected_sig_embed
         assert expected_sig_embed >= perm_n_sig - expected_null
 
+    def test_grouplabel_shuffle_is_subjectwise(self):
+        """
+        Confirm that group label shuffling is occuring the correct (subjectwise)
+        axis.
+        """
+        seed = 0
+        logger.debug(f"random seed = {seed}")
+
+        rng = np.random.default_rng(seed)
+        this_rng = np.random.default_rng(rng.integers(0,1))
+        ref_a = np.ones((5,10))
+        ref_b = np.zeros((5,10))
+        
+        # ref_ones_mask = {
+        #     'd1': [True, False, True, True, False, 
+        #             False, False, True, True, False],
+        #     'd2': [True, False, True, True, False,
+        #             False, True, False, False, True]
+        # }
+
+        return_two_func = lambda x,y: np.array([x,y])
+        obs_shuffle = perm_grouplabel(ref_a, ref_b, return_two_func, n_iter=1, seed=seed)[0]
+        obs_a = obs_shuffle[0]
+        obs_b = obs_shuffle[1]
+
+        ref_c = np.append(ref_a, ref_b, axis=1)
+        this_rng.shuffle(ref_c, axis=1)
+        ref_b = ref_c[:, ref_a.shape[1]: ]
+        ref_a = ref_c[:, : ref_a.shape[1]]
+
+        logger.debug(f"ref_a:\n{ref_a}")
+        logger.debug(f"ref_b:\n{ref_b}")
+        logger.debug(f"obs_a:\n{obs_a}")
+        logger.debug(f"obs_b:\n{obs_b}")
+
+        np_test.assert_array_equal(ref_a, obs_a)
+        np_test.assert_array_equal(ref_b, obs_b)
+        
+
+
 
 if __name__ == "__main__":
     TestNullThreshold()
