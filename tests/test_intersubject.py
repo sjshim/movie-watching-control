@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Compute ISCs using different input types
 # List of subjects with one voxel/ROI
-class TestIscInput:
+class TestIsc:
     """Test that isc() works with list or np.array input type for 
     one or more brain regions"""
 
@@ -67,151 +67,151 @@ class TestIscInput:
         logger.info("Finished testing ISC inputs")
 
 
-# Check pairwise and leave-one-out, and summary statistics for ISC
-def test_isc_options(fxt_simulated_timeseries):
+    # Check pairwise and leave-one-out, and summary statistics for ISC
+    def test_isc_options(self, fxt_simulated_timeseries):
 
-    # Set parameters for toy time series data
-    n_subjects = 20
-    n_TRs = 60
-    n_voxels = 30
-    random_state = 42
+        # Set parameters for toy time series data
+        n_subjects = 20
+        n_TRs = 60
+        n_voxels = 30
+        random_state = 42
 
-    logger.info("Testing ISC options")
+        logger.info("Testing ISC options")
 
-    data = fxt_simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=n_voxels, data_type='array',
-                                random_state=random_state)
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=n_voxels, data_type='array',
+                                    random_state=random_state)
 
-    iscs_loo = isc(data, pairwise=False, summary_statistic=None)
-    assert iscs_loo.shape == (n_subjects, n_voxels)
+        iscs_loo = isc(data, pairwise=False, summary_statistic=None)
+        assert iscs_loo.shape == (n_voxels, n_subjects)
 
-    # Just two subjects
-    iscs_loo = isc(data[..., :2], pairwise=False, summary_statistic=None)
-    assert iscs_loo.shape == (n_voxels,)
+        # Just two subjects
+        iscs_loo = isc(data[..., :2], pairwise=False, summary_statistic=None)
+        assert iscs_loo.shape == (n_voxels,)
 
-    iscs_pw = isc(data, pairwise=True, summary_statistic=None)
-    assert iscs_pw.shape == (n_subjects*(n_subjects-1)/2, n_voxels)
+        iscs_pw = isc(data, pairwise=True, summary_statistic=None)
+        assert iscs_pw.shape == (n_voxels, n_subjects*(n_subjects-1)/2)
 
-    # Check summary statistics
-    isc_mean = isc(data, pairwise=False, summary_statistic='mean')
-    assert isc_mean.shape == (n_voxels,)
+        # Check summary statistics
+        isc_mean = isc(data, pairwise=False, summary_statistic='mean')
+        assert isc_mean.shape == (n_voxels,)
 
-    isc_median = isc(data, pairwise=False, summary_statistic='median')
-    assert isc_median.shape == (n_voxels,)
+        isc_median = isc(data, pairwise=False, summary_statistic='median')
+        assert isc_median.shape == (n_voxels,)
 
-    with pytest.raises(ValueError):
-        isc(data, pairwise=False, summary_statistic='min')
+        with pytest.raises(ValueError):
+            isc(data, pairwise=False, summary_statistic='min')
 
-    logger.info("Finished testing ISC options")
-
-
-# Make sure ISC recovers correlations of 1 and less than 1
-def test_isc_output(fxt_correlated_timeseries):
-
-    logger.info("Testing ISC outputs")
-
-    data = fxt_correlated_timeseries(20, 60, noise=0,
-                                 random_state=42)
-    iscs = isc(data, pairwise=False)
-    assert np.allclose(iscs[:, :2], 1., rtol=1e-05)
-    assert np.all(iscs[:, -1] < 1.)
-
-    iscs = isc(data, pairwise=True)
-    assert np.allclose(iscs[:, :2], 1., rtol=1e-05)
-    assert np.all(iscs[:, -1] < 1.)
-
-    logger.info("Finished testing ISC outputs")
+        logger.info("Finished testing ISC options")
 
 
-# Check for proper handling of NaNs in ISC
-def test_isc_nans(fxt_simulated_timeseries):
+    # Make sure ISC recovers correlations of 1 and less than 1
+    def test_isc_output(self, fxt_correlated_timeseries):
 
-    # Set parameters for toy time series data
-    n_subjects = 20
-    n_TRs = 60
-    n_voxels = 30
-    random_state = 42
+        logger.info("Testing ISC outputs")
 
-    logger.info("Testing ISC options")
+        data = fxt_correlated_timeseries(20, 60, noise=0,
+                                    random_state=42)
+        iscs = isc(data, pairwise=False)
+        assert np.allclose(iscs[:2, :], 1., rtol=1e-05)
+        assert np.all(iscs[-1, :] < 1.)
 
-    data = fxt_simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=n_voxels, data_type='array',
-                                random_state=random_state)
+        iscs = isc(data, pairwise=True)
+        assert np.allclose(iscs[:2, :], 1., rtol=1e-05)
+        assert np.all(iscs[-1, :] < 1.)
 
-    # Inject NaNs into data
-    data[0, 0, 0] = np.nan
+        logger.info("Finished testing ISC outputs")
 
-    # Don't tolerate NaNs, should lose zeroeth voxel
-    iscs_loo = isc(data, pairwise=False, tolerate_nans=False)
-    assert np.sum(np.isnan(iscs_loo)) == n_subjects
 
-    # Tolerate all NaNs, only subject with NaNs yields NaN
-    iscs_loo = isc(data, pairwise=False, tolerate_nans=True)
-    assert np.sum(np.isnan(iscs_loo)) == 1
+    # Check for proper handling of NaNs in ISC
+    def test_isc_nans(self, fxt_simulated_timeseries):
 
-    # Pairwise approach shouldn't care
-    iscs_pw_T = isc(data, pairwise=True, tolerate_nans=True)
-    iscs_pw_F = isc(data, pairwise=True, tolerate_nans=False)
-    assert np.allclose(iscs_pw_T, iscs_pw_F, equal_nan=True)
+        # Set parameters for toy time series data
+        n_subjects = 20
+        n_TRs = 60
+        n_voxels = 30
+        random_state = 42
 
-    assert (np.sum(np.isnan(iscs_pw_T)) ==
-            np.sum(np.isnan(iscs_pw_F)) ==
-            n_subjects - 1)
+        logger.info("Testing ISC options")
 
-    # Set proportion of nans to reject (70% and 90% non-NaN)
-    data[0, 0, :] = np.nan
-    data[0, 1, :n_subjects - int(n_subjects * .7)] = np.nan
-    data[0, 2, :n_subjects - int(n_subjects * .9)] = np.nan
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=n_voxels, data_type='array',
+                                    random_state=random_state)
 
-    iscs_loo_T = isc(data, pairwise=False, tolerate_nans=True)
-    iscs_loo_F = isc(data, pairwise=False, tolerate_nans=False)
-    iscs_loo_95 = isc(data, pairwise=False, tolerate_nans=.95)
-    iscs_loo_90 = isc(data, pairwise=False, tolerate_nans=.90)
-    iscs_loo_80 = isc(data, pairwise=False, tolerate_nans=.8)
-    iscs_loo_70 = isc(data, pairwise=False, tolerate_nans=.7)
-    iscs_loo_60 = isc(data, pairwise=False, tolerate_nans=.6)
+        # Inject NaNs into data
+        data[0, 0, 0] = np.nan
 
-    assert (np.sum(np.isnan(iscs_loo_F)) ==
-            np.sum(np.isnan(iscs_loo_95)) == 60)
-    assert (np.sum(np.isnan(iscs_loo_80)) ==
-            np.sum(np.isnan(iscs_loo_90)) == 42)
-    assert (np.sum(np.isnan(iscs_loo_T)) ==
-            np.sum(np.isnan(iscs_loo_60)) ==
-            np.sum(np.isnan(iscs_loo_70)) == 28)
-    assert np.array_equal(np.sum(np.isnan(iscs_loo_F), axis=0),
-                          np.sum(np.isnan(iscs_loo_95), axis=0))
-    assert np.array_equal(np.sum(np.isnan(iscs_loo_80), axis=0),
-                          np.sum(np.isnan(iscs_loo_90), axis=0))
-    assert np.all((np.array_equal(
-                        np.sum(np.isnan(iscs_loo_T), axis=0),
-                        np.sum(np.isnan(iscs_loo_60), axis=0)),
-                   np.array_equal(
-                        np.sum(np.isnan(iscs_loo_T), axis=0),
-                        np.sum(np.isnan(iscs_loo_70), axis=0)),
-                   np.array_equal(
-                        np.sum(np.isnan(iscs_loo_60), axis=0),
-                        np.sum(np.isnan(iscs_loo_70), axis=0))))
+        # Don't tolerate NaNs, should lose zeroeth voxel
+        iscs_loo = isc(data, pairwise=False, tolerate_nans=False)
+        assert np.sum(np.isnan(iscs_loo)) == n_subjects
 
-    data = fxt_simulated_timeseries(n_subjects, n_TRs,
-                                n_voxels=n_voxels, data_type='array',
-                                random_state=random_state)
+        # Tolerate all NaNs, only subject with NaNs yields NaN
+        iscs_loo = isc(data, pairwise=False, tolerate_nans=True)
+        assert np.sum(np.isnan(iscs_loo)) == 1
 
-    # Make sure voxel with NaNs across all subjects is always removed
-    data[0, 0, :] = np.nan
-    iscs_loo_T = isc(data, pairwise=False, tolerate_nans=True)
-    iscs_loo_F = isc(data, pairwise=False, tolerate_nans=False)
-    assert np.allclose(iscs_loo_T, iscs_loo_F, equal_nan=True)
-    assert (np.sum(np.isnan(iscs_loo_T)) ==
-            np.sum(np.isnan(iscs_loo_F)) ==
-            n_subjects)
+        # Pairwise approach shouldn't care
+        iscs_pw_T = isc(data, pairwise=True, tolerate_nans=True)
+        iscs_pw_F = isc(data, pairwise=True, tolerate_nans=False)
+        assert np.allclose(iscs_pw_T, iscs_pw_F, equal_nan=True)
 
-    iscs_pw_T = isc(data, pairwise=True, tolerate_nans=True)
-    iscs_pw_F = isc(data, pairwise=True, tolerate_nans=False)
-    assert np.allclose(iscs_pw_T, iscs_pw_F, equal_nan=True)
+        assert (np.sum(np.isnan(iscs_pw_T)) ==
+                np.sum(np.isnan(iscs_pw_F)) ==
+                n_subjects - 1)
 
-    assert (np.sum(np.isnan(iscs_pw_T)) ==
-            np.sum(np.isnan(iscs_pw_F)) ==
-            n_subjects * (n_subjects - 1) / 2)
+        # Set proportion of nans to reject (70% and 90% non-NaN)
+        data[0, 0, :] = np.nan
+        data[0, 1, :n_subjects - int(n_subjects * .7)] = np.nan
+        data[0, 2, :n_subjects - int(n_subjects * .9)] = np.nan
+
+        iscs_loo_T = isc(data, pairwise=False, tolerate_nans=True)
+        iscs_loo_F = isc(data, pairwise=False, tolerate_nans=False)
+        iscs_loo_95 = isc(data, pairwise=False, tolerate_nans=.95)
+        iscs_loo_90 = isc(data, pairwise=False, tolerate_nans=.90)
+        iscs_loo_80 = isc(data, pairwise=False, tolerate_nans=.8)
+        iscs_loo_70 = isc(data, pairwise=False, tolerate_nans=.7)
+        iscs_loo_60 = isc(data, pairwise=False, tolerate_nans=.6)
+
+        assert (np.sum(np.isnan(iscs_loo_F)) ==
+                np.sum(np.isnan(iscs_loo_95)) == 60)
+        assert (np.sum(np.isnan(iscs_loo_80)) ==
+                np.sum(np.isnan(iscs_loo_90)) == 42)
+        assert (np.sum(np.isnan(iscs_loo_T)) ==
+                np.sum(np.isnan(iscs_loo_60)) ==
+                np.sum(np.isnan(iscs_loo_70)) == 28)
+        assert np.array_equal(np.sum(np.isnan(iscs_loo_F), axis=0),
+                            np.sum(np.isnan(iscs_loo_95), axis=0))
+        assert np.array_equal(np.sum(np.isnan(iscs_loo_80), axis=0),
+                            np.sum(np.isnan(iscs_loo_90), axis=0))
+        assert np.all((np.array_equal(
+                            np.sum(np.isnan(iscs_loo_T), axis=0),
+                            np.sum(np.isnan(iscs_loo_60), axis=0)),
+                    np.array_equal(
+                            np.sum(np.isnan(iscs_loo_T), axis=0),
+                            np.sum(np.isnan(iscs_loo_70), axis=0)),
+                    np.array_equal(
+                            np.sum(np.isnan(iscs_loo_60), axis=0),
+                            np.sum(np.isnan(iscs_loo_70), axis=0))))
+
+        data = fxt_simulated_timeseries(n_subjects, n_TRs,
+                                    n_voxels=n_voxels, data_type='array',
+                                    random_state=random_state)
+
+        # Make sure voxel with NaNs across all subjects is always removed
+        data[0, 0, :] = np.nan
+        iscs_loo_T = isc(data, pairwise=False, tolerate_nans=True)
+        iscs_loo_F = isc(data, pairwise=False, tolerate_nans=False)
+        assert np.allclose(iscs_loo_T, iscs_loo_F, equal_nan=True)
+        assert (np.sum(np.isnan(iscs_loo_T)) ==
+                np.sum(np.isnan(iscs_loo_F)) ==
+                n_subjects)
+
+        iscs_pw_T = isc(data, pairwise=True, tolerate_nans=True)
+        iscs_pw_F = isc(data, pairwise=True, tolerate_nans=False)
+        assert np.allclose(iscs_pw_T, iscs_pw_F, equal_nan=True)
+
+        assert (np.sum(np.isnan(iscs_pw_T)) ==
+                np.sum(np.isnan(iscs_pw_F)) ==
+                n_subjects * (n_subjects - 1) / 2)
 
 
 # # Test one-sample bootstrap test
@@ -912,10 +912,7 @@ def test_isc_nans(fxt_simulated_timeseries):
 
 
 if __name__ == '__main__':
-    TestIscInput()
-    test_isc_options()
-    test_isc_output()
-    test_isc_nans()
+    TestIsc()
     # test_bootstrap_isc()
     # test_permutation_isc()
     # test_timeshift_isc()

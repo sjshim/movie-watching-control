@@ -60,9 +60,9 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
     Returns
     -------
     array, where shape is:
-        (n_subjects, n_brain_region_iscs) if pairwise=False
-        (n_subject_pairs, n_brain_region_iscs) if pairwise=True
-        (n_subjects_or_subject_pairs) if summary_statistic=True
+        (n_brain_region_iscs, n_subjects) if pairwise=False
+        (n_brain_region_iscs, n_subject_pairs) if pairwise=True
+        (n_brain_region_iscs) if summary_statistic=True
     """
 
     # Check response time series input format
@@ -140,8 +140,8 @@ def isc(data, pairwise=False, summary_statistic=None, tolerate_nans=True, n_jobs
     if iscs.shape[0] == 1:
         iscs = iscs[0]
 
-    # return iscs.T
-    return iscs
+    # return iscs
+    return iscs.T
 
 
 def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None, 
@@ -183,9 +183,9 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
     Returns
     -------
     array, where shape is:
-        (within_and_between_group, n_subjects, n_brain_region_iscs) if subtract_wmb=False
-        (n_subjects, n_brain_region_wmb_iscs) if subtract_wmb=True
-        (n_subjects) if subtract_wmb=True and summary_statistic=True
+        (n_brain_region_iscs, n_subjects, within_and_between_group) if subtract_wmb=False
+        (n_brain_region_wmb_iscs, n_subjects) if subtract_wmb=True
+        (n_brain_region_wmb_iscs) if subtract_wmb=True and summary_statistic=True
 
 
     """
@@ -254,9 +254,10 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
             wmb_iscs = compute_summary_statistic(wmb_iscs,
                                             summary_statistic=summary_statistic,
                                             axis=0)[np.newaxis, :]
-        return wmb_iscs
+        # return wmb_iscs
+        return wmb_iscs.T
     else:
-        return np.array([within_isc, between_isc])
+        return np.array([within_isc, between_isc]).T
 
 # ===========================
 # Movie-segment ISC functions

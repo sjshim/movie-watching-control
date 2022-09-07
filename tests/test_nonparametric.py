@@ -10,7 +10,8 @@ import numpy as np
 import numpy.testing as np_test
 from scipy.stats import truncnorm
 
-from local_intersubject_pkg.nonparametric import null_threshold, perm_signflip
+from local_intersubject_pkg.nonparametric import (null_threshold, perm_signflip, 
+                                                perm_grouplabel)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,11 @@ def compare_func(d, n, tail):
     elif tail == 'both':
         return d > n or d < n 
 
+
 def get_simple_null_dist(data=None, n_iters=25, size=None, alpha=0.05):
+    """
+    Get manually created null distribution to test null_threshold() with.
+    """
     assert n_iters is None or (type(n_iters)==int and n_iters>=25), f"n_iters must either be an int>=25 or None"
     assert size is None or (type(size)==tuple and len(size)==2), \
         f"If size is not None, size must be be a tuple of len==2, but you provided {size}"
@@ -47,7 +52,16 @@ def fxt_get_simple_null_dist():
 
 
 def ref_null(data, stat_mask, n_iters=25, alpha=0.05, null_type='full', tail='upper'):
+    """
+    Create an idea null distribution that will produce significant values
+    that align with data and stat_mask.
+
+    Intended for use when testing null_threshold() parametrically.
+
+    data and stat_mask both must be 1-dimensional array-lik objects.
+    """
     
+    assert len(data) == len(stat_mask), f"data.shape[0] (n_stats) and len(stat_mask) were not equal: {data.shape} != {len(stat_mask)}"
     assert isinstance(data, (list, np.ndarray)) and isinstance(stat_mask, (list, np.ndarray)),\
         f"Both data and stat_mask must be type list or np.ndarray, but were '{type(data)}' and '{type(stat_mask)}' instead"
     assert n_iters is None or (type(n_iters)==int and n_iters>=25), f"n_iters must either be an int>=25 or None"
@@ -109,6 +123,11 @@ def fxt_ref_null():
 
 
 def ref_observed(data=None, stat_mask=None, n_iters=25, alpha=0.05):
+    """
+    Provide a 1-dimensional data and stat_mask array and return
+    expected outputs of null_threshold() for different 'return_type' kwarg values.
+    """
+    
     assert isinstance(data, np.ndarray), f"data was type '{type(data)}', but should be np.ndarray"
     assert isinstance(stat_mask, (list, np.ndarray)), f"stat_mask was type '{type(stat_mask)}', but should be list or np.ndarray"
     logger.debug(f"Setting up ref_observed()")
@@ -139,6 +158,9 @@ def fxt_ref_observed():
 
 
 def ref_simple_observed(n_iters=25):
+    """
+    Get manually created observed stats to test null_threshold() with.
+    """
     ref = {}
     ref['data'] = np.array([0,1])
     ref['null_mask'] = np.repeat([[True, False]], 25, axis=0)
@@ -155,8 +177,52 @@ def fxt_ref_simple_observed():
     return ref_simple_observed
 
 
-def ref_subject_stats(null_lohi=(-0.3, 0.3), sig_lohi=(0.31, 0.9), shape=(100, 1000), 
+def ref_subject_stats(null_lohi=(-0.3, 0.3), sig_lohi=(0.31, 0.9), shape=(1000, 100), 
                     n_sig_embed=0.10, tail='upper', random_seed=None):
+    """
+    Obtain random subject-level stat values truncated with scipy.stats.truncnorm.rvs,
+    and embedded with significantly different values.
+
+    Intended for use when testing perm_signflip()
+
+    Parameters
+    ----------
+    null_lohi : tuple of floats, default=(-0.3, 0.3)
+        The lower and upper range within which most 'null' random values 
+        will be created. The number of null values will be shape[0] - n_sig_embed
+        (assuming n_sig_embed is transformed into an int)
+
+    sig_lohi : tuple of floats, default=(0.31, 0.9)
+        The lower and upper range within which embedded signal stat values
+        will be created. The number of null values will be n_sig_embed 
+        (or n_sig_embed * n_subjects if it is a float).
+
+        If tail='lower', then sig_lohi = (-sig_lohi[1], -sig_lohi[0])
+
+    shape : tuple of ints, default=(1000, 100)
+        The dimensions for the resulting data. Shape=(n_stats, n_subjects)
+
+    n_sig_embed : int, float, default=0.10
+        The number of signal stats to embed in the final data. 
+
+        If n_sig_embed is a float, it is multiplied by n_subjects and rounded
+        to get an integer of signal stats to embed.
+
+    tail : str, default='upper'
+        Choose whether to embed sig_lohi random values toward the upper or lower
+        end of the distribution (across all subjects).
+
+        Options:
+            - 'upper': apply sig_lohi as-is
+            - 'lower': multiply sig_lohi by -1, then switch idx 0 and 1 to
+                create embedded signal values toward the lower end
+                of the distribution.
+
+
+    random_seed : None or int, default=None
+        Choose the seed used to create random values; allows you generate
+        replicable random data.
+    """
     assert type(null_lohi)==tuple and type(sig_lohi)==tuple and type(shape)==tuple, \
         print(f"Both null_lohi, sig_lohi, and shape must be tuples, but instead were type '{type(null_lohi)}', '{type(sig_lohi)}', and '{type(shape)}'")
     assert type(shape[0])==int and type(shape[1])==int, f"shape must be a tuple of integers, but you provided {shape}"
@@ -166,8 +232,7 @@ def ref_subject_stats(null_lohi=(-0.3, 0.3), sig_lohi=(0.31, 0.9), shape=(100, 1
         f"n_sig_embed was type '{type(n_sig_embed)}', but must be an int or float"
     assert tail in which_tail_param, f"tail was '{tail}', but must be in {which_tail_param}"
 
-    n_subjects = shape[0]
-    n_stats = shape[1]
+    n_stats, n_subjects = shape[0], shape[1]
     if type(n_sig_embed) == float:
         n_sig_embed = np.round(n_sig_embed * n_stats).astype(int)
     assert n_sig_embed < n_stats, \
@@ -177,11 +242,11 @@ def ref_subject_stats(null_lohi=(-0.3, 0.3), sig_lohi=(0.31, 0.9), shape=(100, 1
         sig_lohi = (-sig_lohi[1], -sig_lohi[0])
 
     rng = np.random.default_rng(random_seed)
-    stats = truncnorm.rvs(null_lohi[0], null_lohi[1], size=(n_subjects, n_stats),
+    stats = truncnorm.rvs(null_lohi[0], null_lohi[1], size=(n_stats, n_subjects),
                             random_state=rng)
     # logger.debug(f"stats with null={stats}")
-    stats[:, : n_sig_embed] = truncnorm.rvs(sig_lohi[0], sig_lohi[1], 
-                            size=(n_subjects, n_sig_embed), random_state=rng)
+    stats[: n_sig_embed] = truncnorm.rvs(sig_lohi[0], sig_lohi[1], 
+                            size=(n_sig_embed, n_subjects), random_state=rng)
     # logger.debug(f"stats with sig embed={stats}")
     return stats
 
@@ -351,6 +416,7 @@ class TestPermSignflip:
         toc = time.time()
 
         logger.debug(f"perm_signflip 'full' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        logger.debug(f"perm results shape = {perm_results.shape}")
         perm_n_sig = (~np.isnan(perm_results)).sum()
         logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
         
@@ -384,6 +450,7 @@ class TestPermSignflip:
         toc = time.time()
 
         logger.debug(f"perm_signflip 'max_stat' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        logger.debug(f"perm results shape = {perm_results.shape}")
         perm_n_sig = (~np.isnan(perm_results)).sum()
         logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
         
@@ -396,6 +463,61 @@ class TestPermSignflip:
         logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
         assert expected_null >= perm_n_sig - expected_sig_embed
         assert expected_sig_embed >= perm_n_sig - expected_null
+
+    def test_signflip_is_subjectwise(self):
+        """
+        Confirm that signflipping only occurs across subjects (rather than across
+        samples or elementwise, for example)
+        """
+        logger.debug(f"Running TestPermSignflip().test_subject_wise_permutation()")
+        
+        # Create basic data of ones
+        seed = 0
+        logger.debug(f"random seed = {seed}")
+        data = np.ones(shape=(5,10))
+
+        # Precomputed subject-wise 'flipper' array
+        # also generated with rng.choice([-1,1], size=(data.shape[1]))
+        # and rng.seed=0
+        ref_flipper = np.array([1, 1, 1, -1, -1, -1, -1, -1, -1, 1])
+
+        # Check that len of ref_flipper equal to n_subjects from 'data'
+        assert data.shape[1] == ref_flipper.shape[0]
+
+        # Check that observed flipped data is the same as 
+        # reference flipped data
+        ref_flip_data = data * ref_flipper
+        logger.debug(f"data:\n{data}")
+        logger.debug(f"ref_flipper:\n{ref_flipper}")
+        logger.debug(f"ref_flip_data:\n{ref_flip_data}")
+
+        return_func = lambda x: x # x is just returned basically
+        obs_flip_data = perm_signflip(data, stat_func=return_func, 
+                                    n_iter=1, seed=seed)[0] # un-nest first iteration results
+        logger.debug(f"obs_flip_data:\n{obs_flip_data}")
+
+        np_test.assert_array_equal(ref_flip_data, obs_flip_data)
+
+        # Check that masked out +1 and masked out -1 values are equal
+        # based on if their sums are the same
+        positive_mask = np.where(ref_flipper==1, True, False)
+        negative_mask = np.where(ref_flipper==-1, True, False)
+
+        logger.debug(f"+1 subjects mask:\n{positive_mask}")
+        logger.debug(f"-1 subjects mask:\n{negative_mask}")
+
+        ref_n_pos = np.sum(ref_flip_data[:,positive_mask])
+        ref_n_neg = np.sum(ref_flip_data[:,negative_mask])
+        logger.debug(f"ref n pos={ref_n_pos}; ref n neg={ref_n_neg}")
+
+        obs_n_pos = np.sum(obs_flip_data[:,positive_mask])
+        obs_n_neg = np.sum(obs_flip_data[:,negative_mask])
+        logger.debug(f"obs n pos={obs_n_pos}\nobs n neg={obs_n_neg}")
+
+        # Check that the count of positive and negative ones are equal
+        assert ref_n_pos == obs_n_pos
+        assert ref_n_neg == obs_n_neg
+        
 
     @pytest.mark.parametrize('n_jobs', [1, 5, -4])
     def test_parallel_equality(self, n_jobs, fxt_ref_subject_stats):
@@ -413,6 +535,62 @@ class TestPermSignflip:
         pll_thresh = null_threshold(stat_func(stats), loop_perm)
         logger.debug(f"avg diff between loop and pll thresh results={np.nanmean(loop_thresh-pll_thresh):.4f}")
         np_test.assert_array_almost_equal(loop_thresh, pll_thresh)
+
+
+class TestPermGrouplabel:
+    n_iters_param = [
+        # 100,
+        1000
+        ]
+    n_subs_and_stats_param = [
+        (100, 1000),
+        (300, 1000),
+        (500, 10_000)
+    ]
+    sig_prop_param = [0.10, 0.50]
+
+    @pytest.mark.parametrize('n_iters', n_iters_param)
+    @pytest.mark.parametrize('n_subs,n_stats', n_subs_and_stats_param)
+    @pytest.mark.parametrize('sig_prop', sig_prop_param)
+    @pytest.mark.parametrize('which_tail', which_tail_param)
+    def test_full_null(self, n_iters, n_subs, n_stats, sig_prop, which_tail,
+                        fxt_ref_subject_stats):
+
+        alpha = 0.05
+        n_jobs = -2
+        mean_diff_func = lambda x, y: (x-y).mean(axis=0)
+
+        rng = np.random.default_rng(seed=100)
+        d1 = fxt_ref_subject_stats(null_lohi=(-0.3,0.3), sig_lohi=(0.3,0.5), 
+                                    shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    random_seed=rng.integers(0,10))
+        d2 = fxt_ref_subject_stats(null_lohi=(-0.3,0.3), sig_lohi=(-0.3,0.0),
+                                    shape=(n_subs, n_stats), n_sig_embed=sig_prop,
+                                    random_seed=rng.integers(0,10))
+        
+        tic = time.time()
+        perm_results = perm_grouplabel(d1, d2, mean_diff_func,
+                                    n_iter=1000, n_jobs=n_jobs, tail=which_tail,
+                                    apply_threshold=True,
+                                    threshold_kwargs={'alpha':alpha})
+        toc = time.time()
+
+        logger.debug(f"perm_grouplabel 'full' took {toc-tic:.3f} s with n_jobs={n_jobs}")
+        logger.debug(f"perm results shape = {perm_results.shape}")
+        perm_n_sig = (~np.isnan(perm_results)).sum()
+        logger.debug(f"perm_n_sig={perm_n_sig}, {perm_n_sig/n_stats}")
+        
+        expected_sig_embed = np.round(sig_prop*n_stats).astype(int)
+        expected_null = (alpha * n_stats)
+
+        logger.debug(f"expected sig embed={expected_sig_embed}")
+        logger.debug(f"expected null={expected_null}")
+        logger.debug(f"perm_n_sig minus expected null={perm_n_sig - expected_null}")
+        logger.debug(f"perm_n_sig minus expected sig={perm_n_sig - expected_sig_embed}")
+        assert expected_null >= perm_n_sig - expected_sig_embed
+        assert expected_sig_embed >= perm_n_sig - expected_null        
+
+        
 
 
 if __name__ == "__main__":
