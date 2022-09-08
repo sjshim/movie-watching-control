@@ -1,9 +1,11 @@
 # test_intersubject.py
 
 import numpy as np
+import numpy.testing as np_test
 import logging
 import pytest
-from local_intersubject_pkg.intersubject import isc, wmb_isc, finn_isrsa
+from local_intersubject_pkg.intersubject import (isc, wmb_isc, finn_isrsa,
+                                                dynamic_func)
 from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)

@@ -11,6 +11,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 from nibabel import Nifti1Image
 from scipy.stats import pearsonr, spearmanr
+from scipy.ndimage import gaussian_filter
 from scipy.spatial.distance import squareform
 from .utils.bnk_funcs import (array_correlation, _check_timeseries_input,
                             _threshold_nans, compute_summary_statistic)
@@ -273,6 +274,44 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
 # ===========================
 # Movie-segment ISC functions
 # ===========================
+
+def dynamic_func(func, d1=None, d2=None, window_size=5, step=1, gaussian_filter_mode='reflect', 
+                    sigma=3, filter_kwargs={}, func_kwargs={}):
+    if d2 is not None:
+        assert len(d1)==len(d2), f"d1 and d2 length must be equal, but they were {len(d1)} and {len(d2)} instead"
+    
+    out = []
+    for window in window_generator(d1, d2=d2, start=0, stop=window_size, step=step):
+        if gaussian_filter_mode:
+            if d2 is not None:
+                d2 = gaussian_filter(window[1], sigma, 
+                                    mode=gaussian_filter_mode,
+                                    **filter_kwargs)
+            d1 = gaussian_filter(window[0], sigma, mode=gaussian_filter_mode,
+                                **filter_kwargs)
+        
+        if d2 is not None:
+            out.append(func(d1, d2, **func_kwargs))
+        else:
+            out.append(func(d1, **func_kwargs))
+        
+    return np.array(out)
+
+
+def window_generator(d1, d2=None, start=None, stop=None, step=1):
+    if d2 is not None:
+        assert len(d1)==len(d2), f"d1 and d2 length must be equal, but they were {len(d1)} and {len(d2)} instead"
+    try:
+        while stop+step < len(d1):
+#             print(f"start={start},stop={stop},step={step}")
+            if d2 is not None:
+                yield (d1[start:stop], d2[start:stop])
+            else:
+                yield d1[start:stop]
+            start += step
+            stop += step  
+    except:
+        pass
 
 
 def isc_by_segment(data, seg_trs, method='loo', summary_statistic=None, tolerate_nans=True, 
