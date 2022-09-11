@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 
 which_tail_param = ['upper', 'lower']
 
-def compare_func(d, n, tail):
+def compare_func(n, d, tail):
     if tail=='upper':
-        return d > n
+        return n > d
     elif tail == 'lower':
-        return d < n
+        return n < d
     elif tail == 'both':
-        return d > n or d < n 
+        return n > d or n < d 
 
 
 def get_simple_null_dist(data=None, n_iters=25, size=None, alpha=0.05):
@@ -720,7 +720,7 @@ class TestPermMantel:
         data = rng.normal(size=size)
         
         for i in range(n_sig_embed):
-            data[n_sig_embed] = rng.normal(base, scale=0.1)
+            data[i] = rng.normal(base, scale=0.1)
          
         # pos_isrsa = finn_isrsa(data, pos_behav)
         # neg_isrsa = finn_isrsa(data, neg_behav)

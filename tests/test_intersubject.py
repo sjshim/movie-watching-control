@@ -1,11 +1,13 @@
 # test_intersubject.py
 
+from functools import partial
 import numpy as np
 import numpy.testing as np_test
+from scipy.ndimage import gaussian_filter1d
 import logging
 import pytest
 from local_intersubject_pkg.intersubject import (isc, wmb_isc, finn_isrsa,
-                                                dynamic_func)
+                                                dynamic_func, window_generator)
 from scipy.spatial.distance import squareform
 
 logger = logging.getLogger(__name__)
@@ -218,6 +220,10 @@ class TestIsc:
 
 class TestWmbIsc:
     def test_basic(self, fxt_ref_high_pos_neg_corr):
+        """
+        Check that signficant positive difference signals embedded
+        in input data are detected when computing within minus between group isc
+        """
         seed = 0
         n_samples = 1000
         n_sig_embed = 5
@@ -240,6 +246,74 @@ class TestWmbIsc:
         logger.debug(f"obs wmb:\n{obs_wmb}")
 
         assert obs_wmb[:n_sig_embed].mean() > 1.5
+
+    def test_within_and_between_isc_not_equal(self):
+        """
+        Check that within and between group iscs are different when
+        two different datasets are given as input
+        """
+        seed = 0
+        n_samples = 1000
+        n_subs = 5
+        rng = np.random.default_rng(seed)
+        d1 = rng.normal(size=(n_samples, 30, n_subs))
+        d2 = rng.normal(size=(n_samples, 30, n_subs))
+
+        obs_wmb = wmb_isc(d1, d2)
+        logger.debug(f"obs wmb shape={obs_wmb.shape}")
+        logger.debug(f"obs within group isc:\n{obs_wmb[...,0].round(3)}")
+        logger.debug(f"obs between group isc:\n{obs_wmb[...,1].round(3)}")
+        np_test.assert_raises(AssertionError, np_test.assert_array_almost_equal, 
+                            d1[...,0], d1[...,1])
+
+        for ax in [0, 1, None]:
+            obs_w_mean = obs_wmb[...,0].mean(axis=ax)
+            obs_b_mean = obs_wmb[...,1].mean(axis=ax)
+            logger.debug(f"Comparing mean on axis={ax}")
+            logger.debug(f"obs within group mean:\n{obs_w_mean.round(3)}")
+            logger.debug(f"obs between group mean:\n{obs_b_mean.round(3)}")
+            np_test.assert_raises(AssertionError, np_test.assert_array_almost_equal, 
+                            obs_w_mean, obs_b_mean)
+
+        obs_w_halfA = obs_wmb[:, : n_subs, 0]
+        obs_w_halfB = obs_wmb[:, n_subs: , 0]
+        obs_b_halfA = obs_wmb[:, : n_subs, 1]
+        obs_b_halfB = obs_wmb[:, n_subs: , 1]
+        logger.debug(f"obs within group halfA:\n{obs_w_halfA.round(3)}")
+        logger.debug(f"obs within group halfB:\n{obs_w_halfB.round(3)}")
+        logger.debug(f"obs between group halfA:\n{obs_b_halfA.round(3)}")
+        logger.debug(f"obs between group halfB:\n{obs_b_halfB.round(3)}")
+        np_test.assert_raises(AssertionError, np_test.assert_array_almost_equal, 
+                            obs_w_halfA, obs_w_halfB)
+        np_test.assert_raises(AssertionError, np_test.assert_array_almost_equal, 
+                            obs_b_halfA, obs_b_halfB)
+
+    def test_within_and_between_isc_are_equal(self):
+        """
+        Check that each half of within and between group isc 
+        are equal when the same data is provided twice
+        """
+        seed = 0
+        n_samples = 1000
+        n_subs = 5
+        rng = np.random.default_rng(seed)
+        d1 = rng.normal(size=(n_samples, 30, n_subs))
+
+        obs_wmb = wmb_isc(d1, d1)
+        logger.debug(f"obs_wmb shape={obs_wmb.shape}")
+        logger.debug(f"obs within group isc:\n{obs_wmb[...,0].round(3)}")
+        logger.debug(f"obs between group isc:\n{obs_wmb[...,1].round(3)}")
+
+        obs_w_halfA = obs_wmb[:, : n_subs, 0]
+        obs_w_halfB = obs_wmb[:, n_subs: , 0]
+        obs_b_halfA = obs_wmb[:, : n_subs, 1]
+        obs_b_halfB = obs_wmb[:, n_subs: , 1]
+        logger.debug(f"obs within group halfA:\n{obs_w_halfA.round(3)}")
+        logger.debug(f"obs within group halfB:\n{obs_w_halfB.round(3)}")
+        logger.debug(f"obs between group halfA:\n{obs_b_halfA.round(3)}")
+        logger.debug(f"obs between group halfB:\n{obs_b_halfB.round(3)}")
+        np_test.assert_array_equal(obs_w_halfA, obs_w_halfB)
+        np_test.assert_array_equal(obs_b_halfA, obs_b_halfB)
 
 
 class TestFinnIsrsa:
@@ -277,6 +351,222 @@ class TestFinnIsrsa:
         """)
         assert neg_isrsa[0] < -0.8 and neg_isrsa[2] > -0.8
 
+
+@pytest.fixture
+def ref_res1():
+    res = [
+        [0, 1, 2],
+        [1, 2, 3],
+        [2, 3, 4],
+        [3, 4, 5],
+        [4, 5, 6],
+        [5, 6, 7],
+        [6, 7, 8],
+        [7, 8, 9]
+    ]
+    return res
+
+
+@pytest.fixture
+def ref_res2():
+    res = [
+        [10, 11, 12],
+        [11, 12, 13],
+        [12, 13, 14],
+        [13, 14, 15],
+        [14, 15, 16],
+        [15, 16, 17],
+        [16, 17, 18],
+        [17, 18, 19]
+    ]
+    return res
+
+
+class TestDynamicIsc:
+    ref_ndims = [
+            (100, 50, 30),
+            (100, 50, 30, 20),
+            (100, 50, 30, 20, 10)
+        ]
+
+    @pytest.mark.parametrize('ndims', ref_ndims)
+    def test_one_group_multi_dim(self, ndims):
+
+        func = partial(np.mean, axis=0)
+
+        window_size = 5
+        rng = np.random.default_rng(seed=0)
+        data = rng.normal(size=ndims)
+        start_idxs = [i for i in range(ndims[0] - 4)]
+
+        ref_res = []
+        for idx in start_idxs:
+            res = func(data[idx: idx+window_size])
+            ref_res.append(res)
+        ref_res = np.array(ref_res)
+
+        obs_res = dynamic_func(func, data, window_size=window_size,
+                                    gaussian_filter_mode=None)
+        
+        logger.debug(f"ref res shape={ref_res.shape}")
+        logger.debug(f"obs res shape={obs_res.shape}")
+        assert ref_res.shape == obs_res.shape
+
+        logger.debug(f"ref res:\n{ref_res[0,0,0].round(3)}")
+        logger.debug(f"obs res:\n{obs_res[0,0,0].round(3)}")
+        np_test.assert_array_equal(ref_res, obs_res)
+
+    # @pytest.mark.parametrize('ndims',ref_ndims) 
+    # @pytest.mark.parametrize('func_axis', [1, 2])
+    @pytest.mark.parametrize('add_filter', [None, 'reflect'])
+    def test_one_group_simple_func(self, ref_res1, add_filter):
+        """
+        Check that output for one dataset returns as expected with simple summing
+        function
+        """
+
+        return_func = lambda x: np.sum(x)
+
+        data = [i for i in range(10)]
+        window_size = 3
+        step = 1
+        filter_method = add_filter
+        sigma = 3
+
+        if add_filter is not None:
+            ref_result = [np.sum(gaussian_filter1d(i, sigma, axis=0, mode=filter_method)) 
+                                for i in ref_res1]
+        else:
+            ref_result = [np.sum(i) for i in ref_res1]
+        logger.debug(f'data={data}')
+        
+        obs_result = dynamic_func(return_func, data, window_size=window_size, 
+                                    step=step, gaussian_filter_mode=filter_method, sigma=sigma)
+        
+        logger.debug(f"ref_result=\n{ref_result}")
+        logger.debug(f"obs_result shape={obs_result.shape}")
+        logger.debug(f"obs_result=\n{obs_result}")
+
+        np_test.assert_array_equal(ref_result, obs_result)
+
+    @pytest.mark.parametrize('add_filter',[None, 'reflect'])
+    def test_two_group_simple_func(self, ref_res1, ref_res2, add_filter):
+        """
+        Check that output for two datasets returns as expected with simple
+        summing function
+        """
+        return_func = lambda x,y: np.sum(x+y)
+        d1 = [i for i in range(10)]
+        d2 = [i for i in range(10,20)]
+        window_size = 3
+        step = 1
+        ref_res1 = ref_res1
+        ref_res2 = ref_res2
+
+        logger.debug(f'd1={d1}')
+        logger.debug(f"d2={d2}")
+        
+        filter_method = add_filter
+        sigma = 3
+
+        if add_filter is not None:
+            filter = partial(gaussian_filter1d, sigma=sigma, axis=0, mode=filter_method)
+            ref_res = []
+            for i, j in zip(ref_res1, ref_res2):
+                i = filter(i)
+                j = filter(j)
+                ref_res.append(np.sum(i+j))
+        else:
+            ref_res = [np.sum(i+j) for i,j in zip(ref_res1, ref_res2)]
+        
+        obs_res = dynamic_func(return_func, d1, d2, window_size=window_size, 
+                                    step=step, gaussian_filter_mode=filter_method, sigma=sigma)
+        
+        logger.debug(f"ref_res1=\n{ref_res1}")
+        logger.debug(f"ref_res2=\n{ref_res2}")
+        logger.debug(f"ref_res=\n{ref_res}")
+        logger.debug(f"obs_result shape={obs_res.shape}")
+        logger.debug(f"obs_result=\n{obs_res}")
+
+        np_test.assert_array_equal(ref_res, obs_res)
+
+
+class TestWindowGenerator:
+    def test_one_data(self):
+        wind_size = 3
+        step = 1
+        data = [i for i in range(10)]
+        logger.debug(f"data={data}")
+        ref_windows = [
+            [0, 1, 2],
+            [1, 2, 3],
+            [2, 3, 4],
+            [3, 4, 5],
+            [4, 5, 6],
+            [5, 6, 7],
+            [6, 7, 8],
+            [7, 8, 9]
+        ]
+
+        obs_windows = [w for w in window_generator(data, window_size=wind_size, step=step)]
+        logger.debug(f"obs_windows:\n{obs_windows}")
+        for i in range(len(ref_windows)):        
+            r = ref_windows[i]
+            o = obs_windows[i]
+            logger.debug(f"r[{i}] {r}")
+            logger.debug(f"o[{i}] {o}")
+            assert r == o
+            logger.debug(f"r and o were equivlent!")
+
+    def test_two_data(self):
+        wind_size = 3
+        step = 1
+        d1 = [i for i in range(10)]
+        d2 = [i for i in range(10,20)]
+        logger.debug(f"d1={d1}")
+        logger.debug(f"d1={d2}")
+        ref_wind1 = [
+            [0, 1, 2],
+            [1, 2, 3],
+            [2, 3, 4],
+            [3, 4, 5],
+            [4, 5, 6],
+            [5, 6, 7],
+            [6, 7, 8],
+            [7, 8, 9]
+        ]
+        ref_wind2 = [
+            [10, 11, 12],
+            [11, 12, 13],
+            [12, 13, 14],
+            [13, 14, 15],
+            [14, 15, 16],
+            [15, 16, 17],
+            [16, 17, 18],
+            [17, 18, 19]
+        ]
+
+        obs_windows = [w for w in window_generator(d1, d2, window_size=wind_size, step=step)]
+        logger.debug(f"obs_windows:\n{obs_windows}")
+
+        logger.debug("Compare d1,d2 and obs_windows line by line:")
+        for i in range(len(ref_wind1)):        
+            r1 = ref_wind1[i]
+            r2 = ref_wind2[i]
+            
+            logger.debug(f"obs_windows[{i}] {obs_windows[i]}")
+            o1 = obs_windows[i][0]
+            o2 = obs_windows[i][1]
+
+            logger.debug(f"r1[{i}] {r1}")
+            logger.debug(f"o1[{i}] {o1}")
+            assert r1 == o1
+            logger.debug(f"r1 and o1 were equivlent!")
+
+            logger.debug(f"r2[{i}] {r2}")
+            logger.debug(f"o2[{i}] {o2}")
+            assert r2 == o2
+            logger.debug(f"r2 and o2 were equivlent!")
 
 if __name__ == '__main__':
     TestIsc()
