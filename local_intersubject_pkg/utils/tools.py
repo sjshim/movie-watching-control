@@ -2,6 +2,7 @@
 #  
 
 import os
+from pathlib import Path
 import glob
 import json
 from json.decoder import JSONDecodeError
@@ -131,7 +132,7 @@ def save_data(filename, *args, **kwargs):
 # ============================
 
 # Get dict of each subject id and associated filepath
-def get_files_dict(path, id_list):
+def get_files_dict(path, id_list, return_list=False):
     """
     Get dict of each subject id and its associated filepath. The supplied filepath
     should contain curly brackets for string formatting with subject ids; it can
@@ -139,15 +140,24 @@ def get_files_dict(path, id_list):
 
     Intended for use during data preparation, before analysis.
     """
+    assert isinstance(path, (str, Path)), f"path was type '{type(path)},'but must be str or pathlib.Path"
+    assert type(id_list) == list, f"id_list was type '{type(id_list)}', but must be list"
+    assert type(return_list) == bool, f"return_list was type '{type(return_list)}', but must be bool"
+    if isinstance(path, Path):
+        path = str(path)
     id_file_dict = {}
     for id_ in id_list:
         try:
             glob_pattern = path.format(id_)
             for file in glob.iglob(glob_pattern, recursive=True):
                 id_file_dict[id_] = file
-        except:
-            print(f"Failed to retrieve filepath for subject {id_} using glob pattern...\n{glob_pattern}")
-    return id_file_dict
+        except BaseException as err:
+            print(f"Failed to retrieve filepath for subject {id_} using glob pattern...'{glob_pattern}' due to error:\n{err}")
+    if return_list:
+        return list(id_file_dict.values())
+    else:
+        return id_file_dict
+
 
 def check_datasizes(file_dict, check_3d_equality=True, return_4d_tuple=False, return_sub_id=False):
     # Check data dimensions and shortest TR length
