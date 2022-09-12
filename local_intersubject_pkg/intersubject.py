@@ -275,60 +275,67 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
 # Movie-segment ISC functions
 # ===========================
 
-def dynamic_func(func, d1=None, d2=None, window_size=5, step=1, gaussian_filter_mode='reflect', 
+def dynamic_func(func, d1, d2=None, window_size=5, step=1, gaussian_filter_mode='reflect', 
                     sigma=3, filter_kwargs={}, func_kwargs={}):
-    logger.debug(f"Running dynamic_func(window_size={window_size}, step={step})")
+    """
+    Compute a function over windows an array obtained from axis 0
+    """
     if d2 is not None:
         assert len(d1)==len(d2), f"d1 and d2 length must be equal, but they were {len(d1)} and {len(d2)} instead"
-    
+    assert type(window_size) == int and window_size > 0, f"window_size was type '{window_size}', but should be an int > 0"
+    assert type(step) == int and step > 0, f"step was '{step}', but must be an int > 0"
+    assert isinstance(gaussian_filter_mode, (type(None), str)), f"gaussian filter mode must be None or a str"
+    assert isinstance(sigma, (type(None), int, float)), f"sigma must be None, int or float"
+    logger.debug(f"Running dynamic_func(window_size={window_size}, step={step})")
+
     out = []
-    for window in window_generator(d1, d2=d2, window_size=window_size, step=step, start=0):
-        if d2 is not None:
-            d1, d2 = window
-        else:
-            d1 = window
-        if gaussian_filter_mode:
+    try:
+        for window in window_generator(d1, d2=d2, window_size=window_size, step=step, start=0):
             if d2 is not None:
-                d2 = gaussian_filter1d(d2, sigma, axis=0,
-                                mode=gaussian_filter_mode,
-                                **filter_kwargs)
-            d1 = gaussian_filter1d(d1, sigma, axis=0, mode=gaussian_filter_mode,
-                    **filter_kwargs)
-        if d2 is not None:
-            res = func(d1, d2, **func_kwargs)
-        else:
-            res = func(d1, **func_kwargs)
-        out.append(res)
-    out = np.array(out)
-    return out
+                d1, d2 = window
+            else:
+                d1 = window
+            if gaussian_filter_mode:
+                if d2 is not None:
+                    d2 = gaussian_filter1d(d2, sigma, axis=0,
+                                    mode=gaussian_filter_mode,
+                                    **filter_kwargs)
+                d1 = gaussian_filter1d(d1, sigma, axis=0, mode=gaussian_filter_mode,
+                        **filter_kwargs)
+            if d2 is not None:
+                res = func(d1, d2, **func_kwargs)
+            else:
+                res = func(d1, **func_kwargs)
+            out.append(res)
+        out = np.array(out)
+        return out
+
+    except BaseException as err:
+        logger.exception(err)
+        raise
 
 
 def window_generator(d1, d2=None, window_size=None, start=0, step=1, stop=None):
+    """
+    Obtain windows of an array along axis 0
+    """
+    if d2 is not None:
+        assert len(d1) == len(d2), f"d1 and d2 length must be equal, but were {len(d1)} and {len(d2)} instead"
     assert window_size is not None, f"window_size must be an integer and cannot be None"
-    # if d2 is not None:
-    #     assert len(d1) == len(d2), f"len of d1 and d2 must be equal, but were {len(d1)} and {len(d2)} instead"
-    assert start > -1, f"start must be a positive integer"
-    if stop is not None:
-        assert stop > 0 and stop > start, f"stop must be greater than 0 and start"
+    assert start >= 0, f"start must be 0 or greater"
     if stop is None:
         stop = len(d1)
-
-    # assert stop is not None, f"stop must be an integer larger than start"
-    if d2 is not None:
-        assert len(d1)==len(d2), f"d1 and d2 length must be equal, but they were {len(d1)} and {len(d2)} instead"
-    # try:
+    else:
+        assert stop > 0 and stop > start, f"stop must be greater than 0 and start"
+    
     while start+window_size <= stop:
         logger.debug(f"start={start}, stop={stop}, step={step}")
-#             print(f"start={start},stop={stop},step={step}")
         sl = slice(start, start+window_size)
         if d2 is not None:
             yield (d1[sl], d2[sl])
         else:
             yield d1[sl]
         start += step
-        # stop += step  
-    # except:
-    #     pass
 
 
 def isc_by_segment(data, seg_trs, method='loo', summary_statistic=None, tolerate_nans=True, 

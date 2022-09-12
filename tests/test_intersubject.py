@@ -382,7 +382,7 @@ def ref_res2():
     return res
 
 
-class TestDynamicIsc:
+class TestDynamicFunc:
     ref_ndims = [
             (100, 50, 30),
             (100, 50, 30, 20),
