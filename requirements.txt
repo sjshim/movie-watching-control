@@ -5,3 +5,5 @@ ipykernel
 pytest
 nilearn==0.9.0
 nltools==0.4.5
+statsmodels
+matplotlib
