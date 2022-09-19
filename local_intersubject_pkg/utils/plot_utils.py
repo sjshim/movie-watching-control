@@ -66,7 +66,7 @@ def plot_thresholded_func(data=None, null_dist=None,
                           threshold_data=None,
                           masker=None, 
                           alpha=0.05,
-                          max_stat=False,
+                          threshold_method='full',
                           axes=None, 
                           cmap='RdBu_r',
                           threshold=None,
@@ -74,7 +74,7 @@ def plot_thresholded_func(data=None, null_dist=None,
     
     if threshold_data is None:
         threshold_data = null_threshold(data, null_dist=null_dist, 
-                                        alpha=alpha, max_stat=max_stat)
+                                        alpha=alpha, threshold_method=threshold_method)
     if threshold is None:
         threshold = np.nanmin(threshold_data)
         

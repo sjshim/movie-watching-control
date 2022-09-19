@@ -362,7 +362,7 @@ class TestNullThreshold:
 
         return_args = self.return_args.copy()
         return_args.remove('null_mask')
-        obs_null = {arg:null_threshold(ref_data['data'], ref_null, tail=which_tail, max_stat=True, return_type=arg)
+        obs_null = {arg:null_threshold(ref_data['data'], ref_null, tail=which_tail, threshold_method='max_stat', return_type=arg)
                     for arg in return_args}
 
         self.assert_null_data(ref_data, obs_null)
@@ -447,7 +447,7 @@ class TestPermSignflip:
         tic = time.time()
         perm_results = perm_signflip(stats, n_iter=n_iters, tail=which_tail,
                                     apply_threshold=True, n_jobs=n_jobs,
-                                    threshold_kwargs={'alpha':alpha, 'max_stat':True})
+                                    threshold_kwargs={'alpha':alpha, 'threshold_method':'max_stat'})
         toc = time.time()
 
         logger.debug(f"perm_signflip 'max_stat' took {toc-tic:.3f} s with n_jobs={n_jobs}")
@@ -551,8 +551,8 @@ class TestPermGrouplabel:
     sig_prop_param = [0.10, 0.50]
 
     @pytest.mark.parametrize('n_iters', n_iters_param)
-    @pytest.mark.parametrize('max_stat', [False, True])
-    def test_wmb_isc(self, n_iters, max_stat, fxt_ref_high_pos_neg_corr):
+    @pytest.mark.parametrize('thresh_method', ['full', 'max_stat'])
+    def test_wmb_isc(self, n_iters, thresh_method, fxt_ref_high_pos_neg_corr):
         n_jobs = -3
         seed = 0
         n_samples = 1000
@@ -576,7 +576,7 @@ class TestPermGrouplabel:
         obs_wmb_perm = perm_grouplabel(d1, d2, wmb_subtract_mean,
                                     n_iter=n_iters,
                                     apply_threshold=True,
-                                    threshold_kwargs={'max_stat':max_stat},
+                                    threshold_kwargs={'threshold_method':thresh_method},
                                     n_jobs=n_jobs)
 
         logger.debug(f"obs wmb:\n{obs_wmb_perm}")
@@ -647,7 +647,7 @@ class TestPermGrouplabel:
         perm_results = perm_grouplabel(d1, d2, mean_diff_func,
                                     n_iter=n_iters, n_jobs=n_jobs, tail=which_tail,
                                     apply_threshold=True,
-                                    threshold_kwargs={'alpha':alpha, 'max_stat':True})
+                                    threshold_kwargs={'alpha':alpha, 'threshold_method':'max_stat'})
         toc = time.time()
 
         logger.debug(f"perm_grouplabel 'max_stat' took {toc-tic:.3f} s with n_jobs={n_jobs}")

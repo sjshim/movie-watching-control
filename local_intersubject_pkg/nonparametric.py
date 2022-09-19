@@ -7,6 +7,7 @@ from functools import partial
 import logging
 
 import numpy as np
+from statsmodels.stats.multitest import multipletests
 from scipy.stats import (pearsonr, spearmanr, rankdata, ttest_ind,
 ttest_rel, ttest_1samp)
 from joblib import Parallel, delayed, dump, load
@@ -15,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 valid_tail_args = ['upper', 'lower', 'both']
 valid_return_type_args = ['sig_vals', 'null_mask', 'null_ct', 'pvals', 'stat_mask'] 
-valid_null_threshold_kwargs = ['alpha', 'tail', 'max_stat', 'return_type']
+valid_null_threshold_kwargs = ['alpha', 'tail', 'threshold_method', 'return_type']
 
 def null_threshold(observed : np.ndarray, 
                     null_dist : np.ndarray, 
                     alpha: float = 0.05, 
                     tail: str = 'upper', 
-                    max_stat: bool = False, 
+                    threshold_method: str = 'full', 
                     return_type: str = 'sig_vals') -> np.ndarray: 
     """
     Threshold observed statistics using a null distribution of the statistic.
@@ -63,14 +64,18 @@ def null_threshold(observed : np.ndarray,
 
         Options: 'upper', 'lower', 'both'
 
-    max_stat : bool, default=False
-        If max_stat=False, values of observed are tested for significance
+    threshold_method : str, default='full'
+        If 'full', values of observed are tested for significance
         by comparing them only to the same index across all iterations of
         null_dist.
 
-        If max_stat=True, the max stats of null_dist across n_stats (axis=1) is
+        If 'max_stat', the max stats of null_dist across n_stats (axis=1) is
         collected, then each observed value is tested for significance
         across n_iterations (axis=0) max values.
+
+        Other, threshold_method can be a multiple comparisons method accepted by
+        statsmodels.stats.multitest.multipletests.
+        
 
     return_type : str, default='sig_vals'
         Chooose whether to return an intermediate step of the thresholded process.
@@ -81,10 +86,10 @@ def null_threshold(observed : np.ndarray,
               significant values are saved as-is, and non-significant values
               are replaced with np.nan. Shape=(n_stats,)
 
-            - 'null_mask': (only works with max_stat=False)
+            - 'null_mask': (only works with threshold_method != 'max_stat')
               Return the mask representing elements in 'null_dist' where 
               null values are more extreme than 'observed'. Not currently available
-              for max_stat=True. For the full null dist, shape=(n_iteratons, n_stats)
+              for threshold_method='max_stat'. For the full null dist, shape=(n_iteratons, n_stats)
 
             - 'null_ct':
               Return the count of times where null values were more extreme
@@ -114,9 +119,9 @@ def null_threshold(observed : np.ndarray,
         assert len(observed) == null_dist.shape[1], f"Length of observed should be the same as null_dist.shape[1], but instead were {observed.shape} and {null_dist.shape}"
     assert isinstance(alpha, float), print(f"alpha was type '{type(alpha)}', but must be float")
     assert tail in valid_tail_args, print(f"tail was '{tail}', but should be 'upper', 'lower', or 'both'")
-    assert max_stat in [True, False], print(f"max_stat was '{max_stat}', but must be either True or False")
+    assert type(threshold_method) == str, f"threshold_method was type '{type(threshold_method)}', but must be str" 
     assert return_type in valid_return_type_args, print(f"return_type was '{return_type}', but must be 'sig_vals', 'null_mask', 'stat_mask', 'null_ct', or 'pvals")
-    assert not (max_stat == True and return_type == 'null_mask'), print(f"max_stat=True cannot be used with return_type='null_mask'")
+    assert not (threshold_method == 'max_stat' and return_type == 'null_mask'), print(f"threshold_method='max_stat' cannot be used with return_type='null_mask'")
     logger.debug(f"Running null_threshold()")
 
     if null_dist.ndim == 1:
@@ -130,7 +135,7 @@ def null_threshold(observed : np.ndarray,
 
     try:
         # Obtain max stat distribution then threshold observed data 
-        if max_stat:
+        if threshold_method == 'max_stat':
             if tail=='upper':
                 null_dist = np.nanmax(null_dist, axis=1)
             elif tail=='lower':
@@ -149,16 +154,31 @@ def null_threshold(observed : np.ndarray,
             logger.debug(f"return_type=={return_type}\n{out}")
             return out
         out = out / null_dist.shape[0]
-        if return_type == 'pvals':
+
+        # Apply statsmodels multiple correction
+        if threshold_method not in ['full', 'max_stat']:
+            stat_mask, pvals, _, _ = multipletests(out, alpha,
+                                        method=threshold_method)
+            if return_type == 'pvals':
+                return pvals
+            elif return_type == 'stat_mask':
+                return stat_mask
+            elif return_type == 'sig_vals':
+                return np.where(stat_mask==True, observed, np.nan)
+
+        # Apply this function's thresholding method
+        else:
+            if return_type == 'pvals':
+                logger.debug(f"return_type=={return_type}\n{out}")
+                return out
+            
+            out = out < alpha
+            if return_type == 'stat_mask':
+                logger.debug(f"return_type=={return_type}\n{out}")
+                return out
+            out = np.where(out==True, observed, np.nan)
             logger.debug(f"return_type=={return_type}\n{out}")
             return out
-        out = out < alpha
-        if return_type == 'stat_mask':
-            logger.debug(f"return_type=={return_type}\n{out}")
-            return out
-        out = np.where(out==True, observed, np.nan)
-        logger.debug(f"return_type=={return_type}\n{out}")
-        return out
 
     except BaseException as err:
         logger.exception(err)
@@ -171,7 +191,7 @@ def perm_signflip(x: np.ndarray,
                 n_iter: int = 100, 
                 apply_threshold: bool = False,
                 tail: str = 'upper', 
-                threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False},
+                threshold_kwargs: dict = {'alpha':0.05, 'threshold_method':'full'},
                 n_jobs: int = None,
                 seed: int = None,
                 joblib_kwargs: dict = {}) -> np.ndarray:
@@ -250,7 +270,7 @@ def perm_grouplabel(x1: np.ndarray,
                     avg_kind: str = 'mean', 
                     apply_threshold: bool = False, 
                     tail: str = 'upper',
-                    threshold_kwargs: dict = {'alpha':0.05, 'max_stat':False}, 
+                    threshold_kwargs: dict = {'alpha':0.05, 'threshold_method':'full'}, 
                     n_jobs: int = None, 
                     seed: int = None,
                     # memmap_dir=None,
@@ -330,7 +350,7 @@ def perm_mantel(x_n, x_b, tri_func='spearman',
                 n_iter=100, 
                 apply_threshold=False,
                 tail='upper',
-                threshold_kwargs={'alpha':0.05, 'max_stat':False},
+                threshold_kwargs={'alpha':0.05, 'threshold_method':'full'},
                 seed = None,
                 n_jobs=None, 
                 joblib_kwargs={}):
