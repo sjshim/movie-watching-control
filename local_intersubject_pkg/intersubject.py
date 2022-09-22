@@ -232,7 +232,7 @@ def wmb_isc(d1, d2, subtract_wmb=False, summary_statistic=None,
                 n_subjects = data_tup[idx].shape[-1]
                 w_iscs_stack += parallel(delayed(loo_corr)(data_tup[idx], s)
                                         for s in range(n_subjects))
-                b_iscs_stack += parallel(n_jobs=n_jobs)(delayed(one2avg_corr)(data_tup[idx][...,s], data_tup[idx-1])
+                b_iscs_stack += parallel(delayed(one2avg_corr)(data_tup[idx][...,s], data_tup[idx-1])
                                         for s in range(n_subjects))
                     
     else:
