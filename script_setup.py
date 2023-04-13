@@ -6,11 +6,12 @@ import sys
 import argparse
 # import configparser
 import json
+import glob
 
 from local_intersubject_pkg.utils.tools import create_directory
 
-def create_script_settings(project_path, data_dest, nifti_path=None, 
-                        nifti_func=None, nifti_anat=None, create_dir=False, 
+def create_script_settings(project_path, data_dest, bids_path=None, 
+                        preproc_path=None, create_dir=False, 
                         sub_ids_json=None, settings_file=None):
     """
     Create a configuration file containing filepaths, parameters, and other
@@ -24,10 +25,9 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
     paths = {
         "settings_path": settings_file,
         "project_path": project_path, # incase it's not cwd for some reason
-        
-        "nifti_path": nifti_path,
-        "nifti_func": nifti_func,
-        "nifti_anat": nifti_anat,
+
+        "BIDS_path": bids_path,
+        "preproc_func": preproc_path,
 
         "data_dest": data_dest,
         "data_input": os.path.join(data_dest, "data", "input"),
@@ -52,7 +52,11 @@ def create_script_settings(project_path, data_dest, nifti_path=None,
                     parameters['sub_ids'][label] = sub_ids_dict[label]
         except:
             print(f"Failed to retrieve and save subject id lists from the provided file {sub_ids_json}.")
-
+    # Otherwise, use the default subject id list
+    else:
+        subjects = glob.glob(bids_path + '/*')
+        subjects = sorted([os.path.basename(subject_path) for subject_path in subjects])
+        parameters['sub_ids']['all'] = subjects
     # Setup paths for fake test data
     fake_paths = {
         "real_ids": ["fake_data", "real_ids"],
@@ -115,28 +119,20 @@ def get_setup_arguments():
             is required."""
     )
     parser.add_argument(
-        "-n", "--nifti_path", default="",
+        "-b", "--bids_path", default="",
         help="""The root path containing subjects' functional and anatomical
-        Nifti data. If the nifti_path arg is not provided, then it will be 
+        Nifti data. If the bids_path arg is not provided, then it will be 
         inferred from the full paths from the nifti_func and nifti_anat args; if 
-        both nifti_func and nifti_anat are not provided, then nifti_path must
+        both nifti_func and nifti_anat are not provided, then bids_path must
         be provided manually within script_settings.json after it has been 
         created by this script."""
     )
     parser.add_argument(
-        "-f", "--nifti_func", default="",
-        help="""The glob path for subjects' functional Nifti files. nifti_func
-        can either be the absolute or relative path to the nifti func files;
-        relative paths requires that the absolute nifti parent path is supplied
-        to either the nifti_path arg or manually provided to
-        script_settings.json"""
-    )
-    parser.add_argument(
-        "-a", "--nifti_anat", default="",
-        help="""The glob path for subject's anatomical Nifti files.nifti_anat
-        can either be the absolute or relative path to the nifti anat files;
-        relative paths requires that the absolute nifti parent path is supplied
-        to either the nifti_path arg or manually provided to 
+        "-f", "--preproc_path", default="",
+        help="""The path for subjects' preprocessed data directory. preproc_path
+        can either be the absolute or relative path;
+        relative paths requires that the absolute BIDS parent path is supplied
+        to either the bids_path arg or manually provided to
         script_settings.json"""
     )
     parser.add_argument(
@@ -185,18 +181,16 @@ def main():
     if args.sub_ids_json is not None:
         print(f"Retrieving subject ids from {args.sub_ids_json}...")
     print(f'Making json settings file...\n')
-    print(f"Nifti path: \n--> '{args.nifti_path}'")
-    print(f"Nifti func: \n--> '{args.nifti_func}'")
-    print(f"Nifti anat: \n--> '{args.nifti_anat}'")
+    print(f"BIDS path: \n--> '{args.bids_path}'")
+    print(f"Preproc path: \n--> '{args.preproc_path}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{data_dest}'")
     print("\nPlease confirm that directories above are correct before proceeding with your analyses!\n")
 
     # Make the settings file!
     create_script_settings(project_path=project_path, data_dest=data_dest, 
-                        nifti_path=args.nifti_path, nifti_func=args.nifti_func, 
-                        nifti_anat=args.nifti_anat, create_dir=args.create_dir, 
-                        sub_ids_json=args.sub_ids_json, 
+                        bids_path=args.bids_path, preproc_path = args.preproc_path,
+                        create_dir=args.create_dir, sub_ids_json=args.sub_ids_json, 
                         settings_file=args.settings_fn)
 
 if __name__ == "__main__":

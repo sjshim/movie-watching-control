@@ -1,21 +1,31 @@
 {
     "Paths": {
         "settings_path": "script_settings.json",
-        "project_path": "",
-        "data_dest": "",
-        "data_inputs": "",
-        "data_outputs": "",
-        "nifti_path": "",
-        "npy_path": ""
+        "project_path": "/home/groups/russpold/uh2_analysis/movie-watching-control",
+        "BIDS_path": "/oak/stanford/groups/russpold/data/uh2/sherlock_test_data/Sherlock/",
+        "preproc_func": "/oak/stanford/groups/russpold/data/uh2/sherlock_test_data/Sherlock/fmriprep/",
+        "data_dest": "/home/groups/russpold/uh2_analysis/movie-watching-control",
+        "data_input": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input",
+        "data_output": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/output",
+        "npy_path": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input/npy_data"
     },
     "Parameters": {
         "datasize": [],
-        "sub_ids": {}
+        "affine": [],
+        "sub_ids": {
+            "all": [
+                "sub-01",
+                "sub-02",
+                "sub-03",
+                "sub-04",
+                "sub-05"
+            ]
+        }
     },
     "Fake Data Paths": {
-        "real_ids": "",
-        "range_ids": "",
-        "filter_real": "",
-        "filter_range": ""
+        "real_ids": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input/fake_data/real_ids",
+        "range_ids": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input/fake_data/range_ids",
+        "filter_real": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input/fake_data/filter/filter_real",
+        "filter_range": "/home/groups/russpold/uh2_analysis/movie-watching-control/data/input/fake_data/filter/filter_range"
     }
 }
