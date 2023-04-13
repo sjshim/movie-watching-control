@@ -11,7 +11,7 @@ import glob
 from local_intersubject_pkg.utils.tools import create_directory
 
 def create_script_settings(project_path, data_dest, bids_path=None, 
-                        preproc_path=None, create_dir=False, 
+                        func_file=None, mask_file=None, create_dir=False, 
                         sub_ids_json=None, settings_file=None):
     """
     Create a configuration file containing filepaths, parameters, and other
@@ -27,7 +27,8 @@ def create_script_settings(project_path, data_dest, bids_path=None,
         "project_path": project_path, # incase it's not cwd for some reason
 
         "BIDS_path": bids_path,
-        "preproc_func": preproc_path,
+        "func_path": os.path.join(bids_path, "derivatives/fmriprep/{}/func/",func_file),
+        "mask_path": os.path.join(bids_path, "derivatives/fmriprep/{}/func/",mask_file),
 
         "data_dest": data_dest,
         "data_input": os.path.join(data_dest, "data", "input"),
@@ -128,12 +129,14 @@ def get_setup_arguments():
         created by this script."""
     )
     parser.add_argument(
-        "-f", "--preproc_path", default="",
-        help="""The path for subjects' preprocessed data directory. preproc_path
-        can either be the absolute or relative path;
-        relative paths requires that the absolute BIDS parent path is supplied
-        to either the bids_path arg or manually provided to
-        script_settings.json"""
+        "-f", "--func_file", default="",
+        help="""The file name for subjects' preprocessed functional nifti.
+        File name is searched for within BIDS_path/derivatives/fmriprep/*/func/"""
+    )
+        parser.add_argument(
+        "-m", "--mask_file", default="",
+        help="""The file name for subjects' preprocessed functional nifti's mask.
+        File name is searched for within BIDS_path/derivatives/fmriprep/*/func/"""
     )
     parser.add_argument(
         "-p", "--project_path", default=None,
@@ -182,16 +185,17 @@ def main():
         print(f"Retrieving subject ids from {args.sub_ids_json}...")
     print(f'Making json settings file...\n')
     print(f"BIDS path: \n--> '{args.bids_path}'")
-    print(f"Preproc path: \n--> '{args.preproc_path}'")
+    print(f"Func file: \n--> '{args.func_file}'")
+    print(f"Mask file: \n--> '{args.mask_file}'")
     print(f"Project path: \n--> '{project_path}'")
     print(f"Data destination: \n--> '{data_dest}'")
     print("\nPlease confirm that directories above are correct before proceeding with your analyses!\n")
 
     # Make the settings file!
     create_script_settings(project_path=project_path, data_dest=data_dest, 
-                        bids_path=args.bids_path, preproc_path = args.preproc_path,
-                        create_dir=args.create_dir, sub_ids_json=args.sub_ids_json, 
-                        settings_file=args.settings_fn)
+                        bids_path=args.bids_path, func_file=args.func_file,
+                        mask_file=args.mask_file, create_dir=args.create_dir, 
+                        sub_ids_json=args.sub_ids_json, settings_file=args.settings_fn)
 
 if __name__ == "__main__":
     main()
