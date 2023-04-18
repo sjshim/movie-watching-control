@@ -7,6 +7,7 @@ from functools import partial
 from argparse import ArgumentParser
 from pathlib import Path
 
+import nibabel as nib
 import numpy as np
 from nilearn.input_data import MultiNiftiMasker
 from nilearn.plotting import plot_stat_map, plot_glass_brain
@@ -39,47 +40,52 @@ PLOT_FUNCS = {
 }
 
 
-def load_data(cli_args, masker):
+def load_data(cli_args):
     """Load data from filenames using MultiNiftiMasker, then return data as
     numpy arrays."""
-    custom_transform = lambda func_dict : np.swapaxes(np.array(
-                                        masker.transform(func_dict.values())), 
-                                        axis1=1, axis2=2).T
-
     # Get each group's filepaths separately
     sub_ids = get_setting(get_param='sub_ids')
     func_dict = {}
     for group in cli_args.group:
-        func_dict[group] = get_files_dict(get_setting(get_path='nifti_path'), 
+        func_dict[group] = get_files_dict(get_setting(get_path='func_path'), 
                             sub_ids[group]).values()
 
-    # Fit masker to all groups, but transform group data separately
-    masker.fit([file for group in func_dict for file in func_dict[group]])
-    data_dict = {group: custom_transform(func_dict[group]) for group in func_dict}
-    return data_dict
+    mask_dict = {}
+    for group in cli_args.group:
+        mask_dict[group] = get_files_dict(get_setting(get_path='mask_path'), 
+                            sub_ids[group]).values()
 
-
-def compute_analysis(cli_args, data):
-    """Compute main intersubject functions and/or statistical tests."""
     # Set up multimasker instance
-    masker_args = dict(n_jobs=-1)
-    if cli_args.mask: # might move this arg to script_settings.json
-        masker_args['mask_img'] = cli_args.mask
-    else:
-        masker_args['mask_strategy'] = 'gm-template'
-    masker = MultiNiftiMasker(**masker_args)
+    mask_imgs = [mask for group in mask_dict for mask in mask_dict[group]]
+    func_files = [file for group in func_dict for file in func_dict[group]]
 
-    data_dict = load_data(cli_args, masker)
+    masker = MultiNiftiMasker(mask_img = mask_imgs[0])
+    # Fit masker to all groups, but transform group data separately
+    masker.fit(func_files)
 
-    if cli_args.main_stat:
-        main_func = MAIN_STATS[cli_args.main_stat]
-        unthresholded_results = main_func(*[data_dict.values()])
-    if cli_args.stat_test:
-        test_args = dict(n_iter=cli_args.n_iterations)
-        test_func = STAT_TESTS[cli_args.stat_test]
-        thresholded_results = test_func(unthresholded_results, **test_args)
+    custom_transform = lambda func_dict_group: np.transpose(np.swapaxes(np.array(
+                                    masker.transform(func_dict_group)), 
+                                    axis1=1, axis2=2).T, (2,0,1))
+    data_dict = {group: custom_transform(func_dict[group]) for group in func_dict}
+
+    return data_dict, masker
+
+
+def compute_analysis(cli_args):
+    """Compute main intersubject functions and/or statistical tests."""
+    data_dict, masker = load_data(cli_args)
+    print(data_dict['all'].shape)
+    print(data_dict.values())
+    for group in cli_args.group:
+        if cli_args.main_stat:
+            main_func = MAIN_STATS[cli_args.main_stat]
+            unthresholded_results = main_func(*[data_dict[group]])
+        if cli_args.stat_test:
+            test_args = dict(n_iter=cli_args.n_iterations)
+            test_func = STAT_TESTS[cli_args.stat_test]
+            thresholded_results = test_func(unthresholded_results, **test_args)
     
-    visualize_results(cli_args, masker, thresholded_results)
+        visualize_results(cli_args, masker, thresholded_results)
 
 
 def visualize_results(cli_args, masker, data):
@@ -94,24 +100,31 @@ def visualize_results(cli_args, masker, data):
 def get_cli_args():
     """Get command line arguments for this script."""
     parser = ArgumentParser(add_help=True)
-    parser.add_argument('-m', '--main-stat', type=str,
-        help="""The intersubject analysis function to use.""")
-    parser.add_argument('-t', '--stat-test', type=str,
+
+    parser.add_argument('-m', '--main-stat', type=str, default='loo-isc',
+        help="""The intersubject analysis function to use. Default is 'loo-isc'.""")
+
+    parser.add_argument('-t', '--stat-test', type=str, default='perm_signflip',
         help="""The statistical test to use on unthresholded statistical 
-        results.""")
+        results. Default is 'perm_signflip'.""")
+
     parser.add_argument('-g', '--group', 
         type=str, nargs='+', # accept at least one argument
         choices=[*get_setting(get_param='sub_ids').keys()],
+        default=['all'],
         help="""Choose which group you want to perform analysis on. Choices
         must either be 'all', or the specific name of the subject group stored in 
-        script_settings.json['Parameters']['sub_ids']""")
+        script_settings.json['Parameters']['sub_ids']. Default is 'all'.""")
+
     parser.add_argument('-r', '--critical-region', 
         type=float, default=0.05,
         help="""(Optional) Specify the critical region that the statistical test
         will use to threhsold data with. Default value is 0.05""")
+
     parser.add_argument('-i', '--n-iterations', 
         type=int, default=1000,
         help="""(Optional) Number of iterations to use in nonparametric tests.""")
+
     parser.add_argument('-s', '--save-data',
         type=str, choices=['main', 'test', 'all'], default='all',
         help="""(Optional) Choose whether to save analysis results to disk.
@@ -123,8 +136,9 @@ def get_cli_args():
 
 
 def main():
-    print(f"Running {__file__}...\n")
+    print(f"Running {__file__}...\n", flush=True)
     cli_args = get_cli_args()
+    print(f"Command line arguments: {cli_args}\n", flush=True)
     assert all(v is None for v in [cli_args.main_stat, cli_args.stat_test]) == False, "Option must be provided for either --main-stat or --test arguments"
     compute_analysis(cli_args)
 
